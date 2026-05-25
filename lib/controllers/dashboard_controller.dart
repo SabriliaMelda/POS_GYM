@@ -13,6 +13,8 @@ class DashboardController extends GetxController {
   var gymTransactionCount = 0.obs;
   var fbTransactionCount = 0.obs;
   var todayAttendanceCount = 0.obs;
+  var memberGrowthChart = <MemberGrowthPoint>[].obs;
+  final selectedMemberGrowthPoint = Rxn<MemberGrowthPoint>();
   var isLoading = false.obs;
 
   @override
@@ -34,7 +36,11 @@ class DashboardController extends GetxController {
 
       gymTransactionCount.value = _mockData.gymTransactions.length;
       fbTransactionCount.value = _mockData.foodBeverageTransactions.length;
-      todayAttendanceCount.value = _mockData.getAttendanceCountByDate(DateTime.now());
+      todayAttendanceCount.value = _mockData.getAttendanceCountByDate(
+        DateTime.now(),
+      );
+      memberGrowthChart.value = _buildMemberGrowthChart();
+      selectedMemberGrowthPoint.value = null;
     } catch (e) {
       Get.snackbar('Error', 'Failed to load dashboard data: $e');
     } finally {
@@ -45,4 +51,50 @@ class DashboardController extends GetxController {
   Future<void> refreshDashboard() async {
     await loadDashboardData();
   }
+
+  void selectMemberGrowthPoint(MemberGrowthPoint point) {
+    selectedMemberGrowthPoint.value = point;
+  }
+
+  List<MemberGrowthPoint> _buildMemberGrowthChart() {
+    final now = DateTime.now();
+    final monthStart = DateTime(now.year, now.month);
+    final points = <MemberGrowthPoint>[];
+
+    for (var day = 1; day <= now.day; day += 7) {
+      final pointDate = DateTime(now.year, now.month, day);
+      final endOfPointDate = DateTime(
+        pointDate.year,
+        pointDate.month,
+        pointDate.day,
+        23,
+        59,
+        59,
+      );
+      final memberCount = _mockData.members.where((member) {
+        final registeredAt = member.registrationDate;
+        return !registeredAt.isBefore(monthStart) &&
+            !registeredAt.isAfter(endOfPointDate);
+      }).length;
+
+      points.add(MemberGrowthPoint(date: pointDate, count: memberCount));
+    }
+
+    if (points.isEmpty || points.last.date.day != now.day) {
+      final todayCount = _mockData.members.where((member) {
+        final registeredAt = member.registrationDate;
+        return !registeredAt.isBefore(monthStart) && !registeredAt.isAfter(now);
+      }).length;
+      points.add(MemberGrowthPoint(date: now, count: todayCount));
+    }
+
+    return points;
+  }
+}
+
+class MemberGrowthPoint {
+  final DateTime date;
+  final int count;
+
+  const MemberGrowthPoint({required this.date, required this.count});
 }

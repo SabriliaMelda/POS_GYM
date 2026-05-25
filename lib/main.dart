@@ -20,13 +20,13 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'POS GYM - X-FIT Digital Indonesia',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(AppColors.primaryColor)),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          elevation: 2,
-          centerTitle: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(AppColors.primaryColor),
         ),
+        useMaterial3: true,
+        appBarTheme: const AppBarTheme(elevation: 2, centerTitle: true),
       ),
       home: const HomeScreen(),
       getPages: getRoutes,
@@ -95,10 +95,19 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Reports',
           ),
         ],
-        type: BottomNavigationBarType.shifting,
+        type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: const Color(AppColors.primaryColor),
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: const Color(0xFF0F766E),
+        unselectedItemColor: const Color(0xFF94A3B8),
+        selectedLabelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+        elevation: 12,
       ),
     );
   }
@@ -106,36 +115,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // Define routes
 final List<GetPage> getRoutes = [
-  GetPage(
-    name: '/',
-    page: () => const HomeScreen(),
-  ),
-  GetPage(
-    name: '/dashboard',
-    page: () => const DashboardScreen(),
-  ),
+  GetPage(name: '/', page: () => const HomeScreen()),
+  GetPage(name: '/dashboard', page: () => const DashboardScreen()),
   GetPage(
     name: '/member-management',
     page: () => const MemberManagementScreen(),
   ),
-  GetPage(
-    name: '/gym-transaction',
-    page: () => const GymTransactionScreen(),
-  ),
+  GetPage(name: '/gym-transaction', page: () => const GymTransactionScreen()),
   GetPage(
     name: '/food-beverage-transaction',
     page: () => const FoodBeverageTransactionScreen(),
   ),
-  GetPage(
-    name: '/attendance',
-    page: () => const AttendanceScreen(),
-  ),
+  GetPage(name: '/attendance', page: () => const AttendanceScreen()),
   GetPage(
     name: '/transaction-history',
     page: () => const TransactionHistoryScreen(),
   ),
-  GetPage(
-    name: '/reports',
-    page: () => const ReportsScreen(),
-  ),
+  GetPage(name: '/reports', page: () => const ReportsScreen()),
 ];
