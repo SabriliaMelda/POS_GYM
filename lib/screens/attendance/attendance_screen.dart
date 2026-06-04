@@ -14,7 +14,7 @@ class AttendanceScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Attendance'),
+        title: const Text('Absensi'),
         backgroundColor: Colors.purple,
       ),
       body: Column(
@@ -23,8 +23,8 @@ class AttendanceScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16),
             child: CustomTextField(
-              label: 'RFID Card Number',
-              hint: 'Scan RFID card here',
+              label: 'Nomor Kartu RFID',
+              hint: 'Pindai kartu RFID di sini',
               prefixIcon: Icons.credit_card,
             ),
           ),
@@ -32,7 +32,7 @@ class AttendanceScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Today\'s Attendance',
+              'Absensi Hari Ini',
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
@@ -40,8 +40,8 @@ class AttendanceScreen extends StatelessWidget {
             child: Obx(
               () => controller.todayAttendance.isEmpty
                   ? const EmptyStateWidget(
-                      title: 'No Attendance Today',
-                      subtitle: 'Check-in members to see them here',
+                      title: 'Belum Ada Absensi Hari Ini',
+                      subtitle: 'Check-in member akan tampil di sini',
                       icon: Icons.people_outline,
                     )
                   : ListView.builder(
@@ -72,7 +72,7 @@ class AttendanceScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  attendance.memberName ?? 'Unknown Member',
+                  attendance.memberName ?? 'Member Tidak Diketahui',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -80,7 +80,7 @@ class AttendanceScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Check-in: ${attendance.checkInTime ?? 'N/A'}',
+                  'Check-in: ${attendance.checkInTime ?? '-'}',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],

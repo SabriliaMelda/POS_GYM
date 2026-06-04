@@ -42,7 +42,7 @@ class DashboardController extends GetxController {
       memberGrowthChart.value = _buildMemberGrowthChart();
       selectedMemberGrowthPoint.value = null;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load dashboard data: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat data beranda: $e');
     } finally {
       isLoading.value = false;
     }
@@ -58,43 +58,67 @@ class DashboardController extends GetxController {
 
   List<MemberGrowthPoint> _buildMemberGrowthChart() {
     final now = DateTime.now();
-    final monthStart = DateTime(now.year, now.month);
+    final currentWeekStart = DateTime(
+      now.year,
+      now.month,
+      now.day - ((now.day - 1) % 7),
+    );
+    final chartStart = currentWeekStart.subtract(const Duration(days: 42));
     final points = <MemberGrowthPoint>[];
+    final registrationDates = _mockData.members.map(
+      (member) => member.registrationDate,
+    );
 
-    for (var day = 1; day <= now.day; day += 7) {
-      final pointDate = DateTime(now.year, now.month, day);
-      final endOfPointDate = DateTime(
-        pointDate.year,
-        pointDate.month,
-        pointDate.day,
+    for (var week = 0; week < 7; week++) {
+      final weekStart = chartStart.add(Duration(days: week * 7));
+      final weekEnd = DateTime(
+        weekStart.year,
+        weekStart.month,
+        weekStart.day + 6,
         23,
         59,
         59,
       );
-      final memberCount = _mockData.members.where((member) {
-        final registeredAt = member.registrationDate;
-        return !registeredAt.isBefore(monthStart) &&
-            !registeredAt.isAfter(endOfPointDate);
+      final pointCutoff = weekEnd.isAfter(now) ? now : weekEnd;
+      final registrationCount = registrationDates.where((registrationDate) {
+        return !registrationDate.isBefore(weekStart) &&
+            !registrationDate.isAfter(pointCutoff);
       }).length;
+      final previousCount = points.isEmpty ? 0 : points.last.count;
+      final percentChange = _calculatePercentChange(
+        previousCount,
+        registrationCount,
+      );
 
-      points.add(MemberGrowthPoint(date: pointDate, count: memberCount));
-    }
-
-    if (points.isEmpty || points.last.date.day != now.day) {
-      final todayCount = _mockData.members.where((member) {
-        final registeredAt = member.registrationDate;
-        return !registeredAt.isBefore(monthStart) && !registeredAt.isAfter(now);
-      }).length;
-      points.add(MemberGrowthPoint(date: now, count: todayCount));
+      points.add(
+        MemberGrowthPoint(
+          date: weekStart,
+          count: registrationCount,
+          percentChange: percentChange,
+        ),
+      );
     }
 
     return points;
+  }
+
+  double _calculatePercentChange(int previousCount, int currentCount) {
+    if (previousCount == 0) {
+      return currentCount == 0 ? 0 : 100;
+    }
+
+    return ((currentCount - previousCount) / previousCount) * 100;
   }
 }
 
 class MemberGrowthPoint {
   final DateTime date;
   final int count;
+  final double percentChange;
 
-  const MemberGrowthPoint({required this.date, required this.count});
+  const MemberGrowthPoint({
+    required this.date,
+    required this.count,
+    this.percentChange = 0,
+  });
 }

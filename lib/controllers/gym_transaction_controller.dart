@@ -25,7 +25,7 @@ class GymTransactionController extends GetxController {
       transactions.value = loadedTransactions;
       filteredTransactions.value = loadedTransactions;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load transactions: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat transaksi: $e');
     } finally {
       isLoading.value = false;
     }
@@ -36,9 +36,9 @@ class GymTransactionController extends GetxController {
       isLoading.value = true;
       _mockData.addGymTransaction(transaction);
       await loadTransactions();
-      Get.snackbar('Success', 'Transaction created successfully');
+      Get.snackbar('Berhasil', 'Transaksi berhasil dibuat');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to create transaction: $e');
+      Get.snackbar('Kesalahan', 'Gagal membuat transaksi: $e');
     } finally {
       isLoading.value = false;
     }
@@ -49,9 +49,9 @@ class GymTransactionController extends GetxController {
       isLoading.value = true;
       _mockData.updateGymTransaction(transaction);
       await loadTransactions();
-      Get.snackbar('Success', 'Transaction updated successfully');
+      Get.snackbar('Berhasil', 'Transaksi berhasil diperbarui');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update transaction: $e');
+      Get.snackbar('Kesalahan', 'Gagal memperbarui transaksi: $e');
     } finally {
       isLoading.value = false;
     }
@@ -61,7 +61,7 @@ class GymTransactionController extends GetxController {
     try {
       return _mockData.getActiveMembers();
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load members: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat data member: $e');
       return [];
     }
   }
@@ -70,7 +70,7 @@ class GymTransactionController extends GetxController {
     try {
       return _mockData.getActiveGymPackages();
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load gym packages: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat paket gym: $e');
       return [];
     }
   }
@@ -97,7 +97,7 @@ class GymTransactionController extends GetxController {
       final filtered = _mockData.getGymTransactionsInRange(startDate, endDate);
       filteredTransactions.value = filtered;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to filter transactions: $e');
+      Get.snackbar('Kesalahan', 'Gagal memfilter transaksi: $e');
     } finally {
       isLoading.value = false;
     }

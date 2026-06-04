@@ -8,6 +8,12 @@ import '../../widgets/index.dart';
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
+  static const Color _neutralText = Color(0xFF111827);
+  static const Color _mutedText = Color(0xFF64748B);
+  static const Color _softSurface = Color(0xFFF8FAFC);
+  static const Color _softBorder = Color(0xFFE2E8F0);
+  static const Color _singleAccent = Color(0xFF1F3A5F);
+
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(DashboardController());
@@ -16,7 +22,7 @@ class DashboardScreen extends StatelessWidget {
       backgroundColor: const Color(0xFFF5F7FB),
       body: Obx(
         () => controller.isLoading.value
-            ? const LoadingWidget(message: 'Loading dashboard...')
+            ? const LoadingWidget(message: 'Memuat beranda...')
             : RefreshIndicator(
                 onRefresh: () => controller.refreshDashboard(),
                 child: LayoutBuilder(
@@ -257,32 +263,28 @@ class DashboardScreen extends StatelessWidget {
   Widget _buildMetricGrid(DashboardController controller, int columns) {
     final cards = [
       _DashboardMetric(
-        title: 'Total Members',
+        title: 'Total Member',
         value: controller.totalMembers.value.toString(),
         subtitle: 'Terdaftar',
         icon: Icons.groups_rounded,
-        color: const Color(0xFF2563EB),
       ),
       _DashboardMetric(
-        title: 'Active Members',
+        title: 'Member Aktif',
         value: controller.activeMembers.value.toString(),
         subtitle: 'Berlaku',
         icon: Icons.verified_user_rounded,
-        color: const Color(0xFF16A34A),
       ),
       _DashboardMetric(
-        title: 'Expired Members',
+        title: 'Member Kedaluwarsa',
         value: controller.expiredMembers.value.toString(),
         subtitle: 'Follow up',
         icon: Icons.event_busy_rounded,
-        color: const Color(0xFFF97316),
       ),
       _DashboardMetric(
-        title: 'Today Attendance',
+        title: 'Absensi Hari Ini',
         value: controller.todayAttendanceCount.value.toString(),
         subtitle: 'Hari ini',
         icon: Icons.login_rounded,
-        color: const Color(0xFF7C3AED),
       ),
     ];
 
@@ -331,7 +333,7 @@ class DashboardScreen extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    metric.color.withValues(alpha: 0.10),
+                    _softSurface.withValues(alpha: 0.90),
                     Colors.white.withValues(alpha: 0.00),
                   ],
                 ),
@@ -346,10 +348,11 @@ class DashboardScreen extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: metric.color.withValues(alpha: 0.12),
+                    color: _softSurface,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _softBorder),
                   ),
-                  child: Icon(metric.icon, color: metric.color, size: 22),
+                  child: Icon(metric.icon, color: _singleAccent, size: 22),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -362,7 +365,7 @@ class DashboardScreen extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF111827),
+                          color: _neutralText,
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
@@ -373,7 +376,7 @@ class DashboardScreen extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF6B7280),
+                          color: _mutedText,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -384,8 +387,8 @@ class DashboardScreen extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   metric.value,
-                  style: TextStyle(
-                    color: metric.color,
+                  style: const TextStyle(
+                    color: _neutralText,
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
                   ),
@@ -405,6 +408,7 @@ class DashboardScreen extends StatelessWidget {
           : controller.memberGrowthChart;
       final selectedPoint = controller.selectedMemberGrowthPoint.value;
       final headerPoint = selectedPoint ?? chartPoints.last;
+      final headerPercentColor = _growthColor(headerPoint.percentChange);
 
       return Container(
         height: 168,
@@ -417,7 +421,7 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 const Expanded(
                   child: Text(
-                    'Grafik Member Bulan Ini',
+                    'Pendaftaran 7 Minggu',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -427,13 +431,26 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                Text(
-                  '${headerPoint.count} member',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.86),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _formatPercentChange(headerPoint.percentChange),
+                      style: TextStyle(
+                        color: headerPercentColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      '${headerPoint.count} member baru',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.78),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -501,9 +518,9 @@ class DashboardScreen extends StatelessWidget {
                           ),
                           if (selectedPoint != null)
                             Positioned(
-                              left: (popupOffset.dx - 52).clamp(
+                              left: (popupOffset.dx - 60).clamp(
                                 0.0,
-                                (constraints.maxWidth - 104).clamp(
+                                (constraints.maxWidth - 120).clamp(
                                   0.0,
                                   double.infinity,
                                 ),
@@ -531,7 +548,7 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildChartMiniPopup(MemberGrowthPoint point) {
     return Container(
-      width: 104,
+      width: 120,
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -558,9 +575,49 @@ class DashboardScreen extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            '${_formatPercentChange(point.percentChange)} minggu ini',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _growthColor(point.percentChange, dark: true),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${point.count} member baru',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatPercentChange(double value) {
+    if (value == 0) return '0%';
+    final prefix = value > 0 ? '+' : '';
+    return '$prefix${value.toStringAsFixed(0)}%';
+  }
+
+  Color _growthColor(double value, {bool dark = false}) {
+    if (value > 0) {
+      return dark ? const Color(0xFF15803D) : const Color(0xFF86EFAC);
+    }
+    if (value < 0) {
+      return dark ? const Color(0xFFB91C1C) : const Color(0xFFFCA5A5);
+    }
+    return dark
+        ? const Color(0xFF475569)
+        : Colors.white.withValues(alpha: 0.80);
   }
 
   Offset _chartPointOffset(
@@ -632,37 +689,35 @@ class DashboardScreen extends StatelessWidget {
     final totalRevenue = controller.totalCombinedRevenue.value;
 
     return _buildPanel(
-      title: 'Revenue Summary',
+      title: 'Ringkasan Omzet',
       icon: Icons.payments_rounded,
       child: Column(
         children: [
           _buildRevenueRow(
-            label: 'Gym Transaction',
+            label: 'Transaksi Gym',
             value: gymRevenue,
             total: totalRevenue,
-            color: const Color(0xFF2563EB),
             icon: Icons.fitness_center_rounded,
           ),
           const SizedBox(height: 16),
           _buildRevenueRow(
-            label: 'Food & Beverage',
+            label: 'Makanan & Minuman',
             value: fbRevenue,
             total: totalRevenue,
-            color: const Color(0xFF16A34A),
             icon: Icons.restaurant_rounded,
           ),
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0FDF4),
+              color: _softSurface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFBBF7D0)),
+              border: Border.all(color: _softBorder),
             ),
             child: _buildAmountLine(
-              'Total Revenue',
+              'Total Omzet',
               CurrencyUtils.formatCurrency(totalRevenue),
-              color: const Color(0xFF15803D),
+              color: _neutralText,
               isBold: true,
             ),
           ),
@@ -675,7 +730,6 @@ class DashboardScreen extends StatelessWidget {
     required String label,
     required double value,
     required double total,
-    required Color color,
     required IconData icon,
   }) {
     final progress = total <= 0 ? 0.0 : value / total;
@@ -688,17 +742,18 @@ class DashboardScreen extends StatelessWidget {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.11),
+                color: _softSurface,
                 borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: _softBorder),
               ),
-              child: Icon(icon, color: color, size: 20),
+              child: Icon(icon, color: _singleAccent, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildAmountLine(
                 label,
                 CurrencyUtils.formatCurrency(value),
-                color: color,
+                color: _neutralText,
               ),
             ),
           ],
@@ -710,7 +765,7 @@ class DashboardScreen extends StatelessWidget {
             value: progress.clamp(0.0, 1.0).toDouble(),
             minHeight: 7,
             backgroundColor: const Color(0xFFE5E7EB),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+            valueColor: const AlwaysStoppedAnimation<Color>(_singleAccent),
           ),
         ),
       ],
@@ -757,21 +812,19 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildTransactionPanel(DashboardController controller) {
     return _buildPanel(
-      title: 'Transaction Summary',
+      title: 'Ringkasan Transaksi',
       icon: Icons.receipt_long_rounded,
       child: Column(
         children: [
           _buildTransactionTile(
-            title: 'Gym Transactions',
+            title: 'Transaksi Gym',
             value: controller.gymTransactionCount.value.toString(),
-            color: const Color(0xFF2563EB),
             icon: Icons.local_activity_rounded,
           ),
           const SizedBox(height: 12),
           _buildTransactionTile(
-            title: 'F&B Transactions',
+            title: 'Transaksi M&M',
             value: controller.fbTransactionCount.value.toString(),
-            color: const Color(0xFF16A34A),
             icon: Icons.shopping_bag_rounded,
           ),
         ],
@@ -782,15 +835,14 @@ class DashboardScreen extends StatelessWidget {
   Widget _buildTransactionTile({
     required String title,
     required String value,
-    required Color color,
     required IconData icon,
   }) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: _softSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        border: Border.all(color: _softBorder),
       ),
       child: Row(
         children: [
@@ -800,15 +852,16 @@ class DashboardScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _softBorder),
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Icon(icon, color: _singleAccent, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               title,
               style: const TextStyle(
-                color: Color(0xFF374151),
+                color: _neutralText,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -816,8 +869,8 @@ class DashboardScreen extends StatelessWidget {
           ),
           Text(
             value,
-            style: TextStyle(
-              color: color,
+            style: const TextStyle(
+              color: _neutralText,
               fontSize: 24,
               fontWeight: FontWeight.w800,
             ),
@@ -1073,13 +1126,11 @@ class _DashboardMetric {
   final String value;
   final String subtitle;
   final IconData icon;
-  final Color color;
 
   const _DashboardMetric({
     required this.title,
     required this.value,
     required this.subtitle,
     required this.icon,
-    required this.color,
   });
 }

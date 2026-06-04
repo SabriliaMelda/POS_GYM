@@ -14,7 +14,7 @@ class FoodBeverageTransactionScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Food & Beverage'),
+        title: const Text('Makanan & Minuman'),
         backgroundColor: Colors.green,
       ),
       body: Column(
@@ -34,7 +34,7 @@ class FoodBeverageTransactionScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Cart Summary',
+                        'Ringkasan Keranjang',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -44,7 +44,7 @@ class FoodBeverageTransactionScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Items:'),
+                          const Text('Item:'),
                           Text(
                             controller.cartItems.length.toString(),
                             style: const TextStyle(fontWeight: FontWeight.bold),
@@ -67,19 +67,19 @@ class FoodBeverageTransactionScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: CustomButton(
-                              label: 'New Transaction',
+                              label: 'Transaksi Baru',
                               onPressed: () => controller.clearCart(),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: CustomButton(
-                              label: 'Checkout',
+                              label: 'Bayar',
                               onPressed: () {
                                 if (controller.cartItems.isEmpty) {
-                                  Get.snackbar('Error', 'Cart is empty');
+                                  Get.snackbar('Kesalahan', 'Keranjang masih kosong');
                                 } else {
-                                  Get.snackbar('UI Preview', 'Checkout belum diaktifkan.');
+                                  Get.snackbar('Pratinjau UI', 'Pembayaran belum diaktifkan.');
                                 }
                               },
                               backgroundColor: Colors.green,
@@ -98,8 +98,8 @@ class FoodBeverageTransactionScreen extends StatelessWidget {
             child: Obx(
               () => controller.items.isEmpty
                   ? const EmptyStateWidget(
-                      title: 'No Items Available',
-                      subtitle: 'Add items to get started',
+                      title: 'Belum Ada Item',
+                      subtitle: 'Tambahkan item untuk mulai',
                       icon: Icons.shopping_cart_outlined,
                     )
                   : ListView.builder(
@@ -151,7 +151,7 @@ class FoodBeverageTransactionScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Stock: ${item.stock}',
+                    'Stok: ${item.stock}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: Colors.grey,

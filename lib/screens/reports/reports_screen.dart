@@ -8,46 +8,46 @@ class ReportsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reports'),
+        title: const Text('Laporan'),
         backgroundColor: Colors.orange,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _buildReportCard(
-            'Member Report',
-            'View all members and their status',
+            'Laporan Member',
+            'Lihat semua member dan statusnya',
             Icons.people,
             Colors.blue,
             () {
-              Get.snackbar('UI Preview', 'Member report belum diaktifkan.');
+              Get.snackbar('Pratinjau UI', 'Laporan member belum diaktifkan.');
             },
           ),
           _buildReportCard(
-            'Revenue Report',
-            'View revenue breakdown by category',
+            'Laporan Omzet',
+            'Lihat rincian omzet berdasarkan kategori',
             Icons.attach_money,
             Colors.green,
             () {
-              Get.snackbar('UI Preview', 'Revenue report belum diaktifkan.');
+              Get.snackbar('Pratinjau UI', 'Laporan omzet belum diaktifkan.');
             },
           ),
           _buildReportCard(
-            'Transaction Report',
-            'Detailed transaction history and statistics',
+            'Laporan Transaksi',
+            'Riwayat dan statistik transaksi lengkap',
             Icons.receipt,
             Colors.orange,
             () {
-              Get.snackbar('UI Preview', 'Transaction report belum diaktifkan.');
+              Get.snackbar('Pratinjau UI', 'Laporan transaksi belum diaktifkan.');
             },
           ),
           _buildReportCard(
-            'Attendance Report',
-            'Member attendance statistics and trends',
+            'Laporan Absensi',
+            'Statistik dan tren absensi member',
             Icons.calendar_today,
             Colors.purple,
             () {
-              Get.snackbar('UI Preview', 'Attendance report belum diaktifkan.');
+              Get.snackbar('Pratinjau UI', 'Laporan absensi belum diaktifkan.');
             },
           ),
         ],

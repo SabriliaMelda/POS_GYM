@@ -24,7 +24,7 @@ class MemberManagementController extends GetxController {
       members.value = loadedMembers;
       filteredMembers.value = loadedMembers;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load members: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat data member: $e');
     } finally {
       isLoading.value = false;
     }
@@ -35,9 +35,9 @@ class MemberManagementController extends GetxController {
       isLoading.value = true;
       _mockData.addMember(member);
       await loadMembers();
-      Get.snackbar('Success', 'Member added successfully');
+      Get.snackbar('Berhasil', 'Member berhasil ditambahkan');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to add member: $e');
+      Get.snackbar('Kesalahan', 'Gagal menambahkan member: $e');
     } finally {
       isLoading.value = false;
     }
@@ -48,9 +48,9 @@ class MemberManagementController extends GetxController {
       isLoading.value = true;
       _mockData.updateMember(member);
       await loadMembers();
-      Get.snackbar('Success', 'Member updated successfully');
+      Get.snackbar('Berhasil', 'Member berhasil diperbarui');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update member: $e');
+      Get.snackbar('Kesalahan', 'Gagal memperbarui member: $e');
     } finally {
       isLoading.value = false;
     }
@@ -61,9 +61,9 @@ class MemberManagementController extends GetxController {
       isLoading.value = true;
       _mockData.deleteMember(memberId);
       await loadMembers();
-      Get.snackbar('Success', 'Member deleted successfully');
+      Get.snackbar('Berhasil', 'Member berhasil dihapus');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to delete member: $e');
+      Get.snackbar('Kesalahan', 'Gagal menghapus member: $e');
     } finally {
       isLoading.value = false;
     }
@@ -88,7 +88,7 @@ class MemberManagementController extends GetxController {
       final member = _mockData.getMemberById(memberId);
       selectedMember.value = member;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load member details: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat detail member: $e');
     }
   }
 
@@ -96,7 +96,7 @@ class MemberManagementController extends GetxController {
     try {
       return _mockData.getActiveGymPackages();
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load gym packages: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat paket gym: $e');
       return [];
     }
   }

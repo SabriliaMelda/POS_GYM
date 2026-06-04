@@ -68,11 +68,11 @@ class _HomeScreenState extends State<HomeScreen> {
         items: [
           const BottomNavigationBarItem(
             icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
+            label: 'Beranda',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.people),
-            label: 'Members',
+            label: 'Member',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.fitness_center),
@@ -84,15 +84,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.login),
-            label: 'Attend',
+            label: 'Absensi',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.history),
-            label: 'History',
+            label: 'Riwayat',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.assessment),
-            label: 'Reports',
+            label: 'Laporan',
           ),
         ],
         type: BottomNavigationBarType.fixed,

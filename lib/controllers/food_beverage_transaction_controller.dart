@@ -28,7 +28,7 @@ class FoodBeverageTransactionController extends GetxController {
       final loadedItems = _mockData.getActiveFoodBeverageItems();
       items.value = loadedItems;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load items: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat item: $e');
     } finally {
       isLoading.value = false;
     }
@@ -40,7 +40,7 @@ class FoodBeverageTransactionController extends GetxController {
       final loadedTransactions = List<FoodBeverageTransaction>.from(_mockData.foodBeverageTransactions);
       transactions.value = loadedTransactions;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load transactions: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat transaksi: $e');
     } finally {
       isLoading.value = false;
     }
@@ -107,9 +107,9 @@ class FoodBeverageTransactionController extends GetxController {
       _mockData.addFoodBeverageTransaction(transaction);
       clearCart();
       await loadTransactions();
-      Get.snackbar('Success', 'Transaction created successfully');
+      Get.snackbar('Berhasil', 'Transaksi berhasil dibuat');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to create transaction: $e');
+      Get.snackbar('Kesalahan', 'Gagal membuat transaksi: $e');
     } finally {
       isLoading.value = false;
     }

@@ -24,7 +24,7 @@ class TransactionHistoryController extends GetxController {
       gymTransactions.value = gymTrans;
       fbTransactions.value = fbTrans;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load transactions: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat transaksi: $e');
     } finally {
       isLoading.value = false;
     }
@@ -39,7 +39,7 @@ class TransactionHistoryController extends GetxController {
       gymTransactions.value = gymTrans;
       fbTransactions.value = fbTrans;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to filter transactions: $e');
+      Get.snackbar('Kesalahan', 'Gagal memfilter transaksi: $e');
     } finally {
       isLoading.value = false;
     }

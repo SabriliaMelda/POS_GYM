@@ -22,7 +22,7 @@ class AttendanceController extends GetxController {
       final records = List<Attendance>.from(_mockData.attendanceRecords);
       attendanceRecords.value = records;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load attendance: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat absensi: $e');
     } finally {
       isLoading.value = false;
     }
@@ -33,7 +33,7 @@ class AttendanceController extends GetxController {
       final records = _mockData.getTodayAttendance();
       todayAttendance.value = records;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load today attendance: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat absensi hari ini: $e');
     }
   }
 
@@ -42,9 +42,9 @@ class AttendanceController extends GetxController {
       isLoading.value = true;
       _mockData.addAttendance(attendance);
       await loadTodayAttendance();
-      Get.snackbar('Success', 'Attendance recorded successfully');
+      Get.snackbar('Berhasil', 'Absensi berhasil dicatat');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to record attendance: $e');
+      Get.snackbar('Kesalahan', 'Gagal mencatat absensi: $e');
     } finally {
       isLoading.value = false;
     }
@@ -54,7 +54,7 @@ class AttendanceController extends GetxController {
     try {
       final member = _mockData.getMemberById(memberId);
       if (member == null) {
-        Get.snackbar('Error', 'Member not found');
+        Get.snackbar('Kesalahan', 'Member tidak ditemukan');
         return null;
       }
 
@@ -72,7 +72,7 @@ class AttendanceController extends GetxController {
       await recordAttendance(attendance);
       return attendance;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to check in member: $e');
+      Get.snackbar('Kesalahan', 'Gagal check-in member: $e');
       return null;
     }
   }
@@ -94,10 +94,10 @@ class AttendanceController extends GetxController {
         );
         _mockData.updateAttendance(updatedAttendance);
         await loadTodayAttendance();
-        Get.snackbar('Success', 'Member checked out successfully');
+        Get.snackbar('Berhasil', 'Member berhasil check-out');
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to check out member: $e');
+      Get.snackbar('Kesalahan', 'Gagal check-out member: $e');
     }
   }
 

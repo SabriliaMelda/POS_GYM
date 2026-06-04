@@ -14,7 +14,7 @@ class TransactionHistoryScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transaction History'),
+        title: const Text('Riwayat Transaksi'),
         backgroundColor: Colors.cyan,
       ),
       body: Column(
@@ -37,7 +37,7 @@ class TransactionHistoryScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Gym Revenue',
+                              'Omzet Gym',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
@@ -75,7 +75,7 @@ class TransactionHistoryScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'F&B Revenue',
+                              'Omzet M&M',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
@@ -112,8 +112,8 @@ class TransactionHistoryScreen extends StatelessWidget {
                 children: [
                   const TabBar(
                     tabs: [
-                      Tab(text: 'Gym Transactions'),
-                      Tab(text: 'F&B Transactions'),
+                      Tab(text: 'Transaksi Gym'),
+                      Tab(text: 'Transaksi M&M'),
                     ],
                   ),
                   Expanded(
@@ -123,8 +123,8 @@ class TransactionHistoryScreen extends StatelessWidget {
                         Obx(
                           () => controller.gymTransactions.isEmpty
                               ? const EmptyStateWidget(
-                                  title: 'No Gym Transactions',
-                                  subtitle: 'Transactions will appear here',
+                                  title: 'Belum Ada Transaksi Gym',
+                                  subtitle: 'Transaksi akan tampil di sini',
                                   icon: Icons.receipt_long_outlined,
                                 )
                               : ListView.builder(
@@ -140,8 +140,8 @@ class TransactionHistoryScreen extends StatelessWidget {
                         Obx(
                           () => controller.fbTransactions.isEmpty
                               ? const EmptyStateWidget(
-                                  title: 'No F&B Transactions',
-                                  subtitle: 'Transactions will appear here',
+                                  title: 'Belum Ada Transaksi M&M',
+                                  subtitle: 'Transaksi akan tampil di sini',
                                   icon: Icons.shopping_cart_outlined,
                                 )
                               : ListView.builder(
@@ -179,7 +179,7 @@ class TransactionHistoryScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    transaction.memberName ?? 'Unknown',
+                    transaction.memberName ?? 'Tidak Diketahui',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -211,7 +211,7 @@ class TransactionHistoryScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    transaction.status,
+                    _formatTransactionStatus(transaction.status),
                     style: const TextStyle(
                       fontSize: 11,
                       color: Colors.green,
@@ -241,7 +241,7 @@ class TransactionHistoryScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    transaction.memberName ?? 'Guest',
+                    transaction.memberName ?? 'Tamu',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -267,7 +267,7 @@ class TransactionHistoryScreen extends StatelessWidget {
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 Text(
-                  '${transaction.items.length} items',
+                  '${transaction.items.length} item',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
@@ -276,5 +276,12 @@ class TransactionHistoryScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatTransactionStatus(String status) {
+    if (status == 'completed') return 'Selesai';
+    if (status == 'pending') return 'Menunggu';
+    if (status == 'cancelled') return 'Dibatalkan';
+    return status;
   }
 }

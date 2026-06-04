@@ -14,8 +14,8 @@ void main() {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    expect(find.text('Dashboard'), findsWidgets);
-    expect(find.text('Members'), findsOneWidget);
+    expect(find.text('Beranda'), findsWidgets);
+    expect(find.text('Member'), findsOneWidget);
     expect(find.text('Gym'), findsOneWidget);
     expect(find.text('F&B'), findsOneWidget);
   });
