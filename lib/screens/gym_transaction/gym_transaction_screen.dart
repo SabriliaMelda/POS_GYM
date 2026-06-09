@@ -228,6 +228,9 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
 
   Widget _buildHero(List<GymPackage> packages) {
     final bestValue = packages.isEmpty ? null : packages.last;
+    final bestValueMonthlyPrice = bestValue == null
+        ? null
+        : bestValue.price / _durationInMonths(bestValue.durationInDays);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 16),
@@ -247,60 +250,122 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Membership fleksibel',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  bestValue == null
-                      ? 'Kelola pilihan paket bulanan sampai tahunan'
-                      : 'Paket terbaik: ${bestValue.name}',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showBestValue =
+              constraints.maxWidth >= 680 && bestValueMonthlyPrice != null;
+
+          return Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildHeroPill('${packages.length} Paket'),
-                    _buildHeroPill('Mulai 199rb'),
-                    _buildHeroPill('Admin daftar 100rb'),
+                    const Text(
+                      'Membership fleksibel',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      bestValue == null
+                          ? 'Kelola pilihan paket bulanan sampai tahunan'
+                          : 'Paket terbaik: ${bestValue.name}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildHeroPill('${packages.length} Paket'),
+                        _buildHeroPill('Mulai 199rb'),
+                        _buildHeroPill('Admin daftar 100rb'),
+                      ],
+                    ),
                   ],
                 ),
+              ),
+              if (showBestValue) ...[
+                const SizedBox(width: 24),
+                Container(
+                  width: 210,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 13,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'REKOMENDASI HEMAT',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        bestValue!.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${CurrencyUtils.formatCurrency(bestValueMonthlyPrice!)} / bulan',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.84),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            width: 66,
-            height: 66,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
-            ),
-            child: const Icon(
-              Icons.workspace_premium_rounded,
-              color: Colors.white,
-              size: 34,
-            ),
-          ),
-        ],
+              const SizedBox(width: 12),
+              Container(
+                width: 66,
+                height: 66,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.20),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 34,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
