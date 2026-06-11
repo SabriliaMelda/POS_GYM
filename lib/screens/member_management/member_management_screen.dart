@@ -13,8 +13,8 @@ class MemberManagementScreen extends StatelessWidget {
   static const Color _text = Color(0xFF111827);
   static const Color _muted = Color(0xFF64748B);
   static const Color _border = Color(0xFFE2E8F0);
-  static const Color _accent = Color(0xFF1F3A5F);
-  static const Color _softAccent = Color(0xFFEFF6FF);
+  static const Color _accent = Color(0xFF1D4ED8);
+  static const Color _softAccent = Color(0xFFE8F4FF);
   static const Color _success = Color(0xFF15803D);
   static const Color _danger = Color(0xFFB91C1C);
 
@@ -51,7 +51,7 @@ class MemberManagementScreen extends StatelessWidget {
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                           sliver: SliverList.separated(
                             itemCount: controller.filteredMembers.length,
-                            separatorBuilder: (_, __) =>
+                            separatorBuilder: (_, _) =>
                                 const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               final member = controller.filteredMembers[index];
@@ -68,23 +68,24 @@ class MemberManagementScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(MemberManagementController controller) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF071A3D), Color(0xFF0B3A7A), Color(0xFF155E9F)],
+        ),
+      ),
       child: Row(
         children: [
           Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: _accent,
+              color: Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: _accent.withValues(alpha: 0.22),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
             ),
             child: const Icon(Icons.groups_rounded, color: Colors.white),
           ),
@@ -98,7 +99,7 @@ class MemberManagementScreen extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: _text,
+                    color: Colors.white,
                     fontSize: 23,
                     fontWeight: FontWeight.w900,
                   ),
@@ -110,7 +111,7 @@ class MemberManagementScreen extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: _muted,
+                    color: Color(0xFFE8F4FF),
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -118,10 +119,14 @@ class MemberManagementScreen extends StatelessWidget {
               ],
             ),
           ),
-          IconButton.filledTonal(
+          IconButton.filled(
             onPressed: () => controller.loadMembers(),
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Muat ulang',
+            style: IconButton.styleFrom(
+              foregroundColor: const Color(0xFF071A3D),
+              backgroundColor: const Color(0xFFFFC857),
+            ),
           ),
         ],
       ),
@@ -417,7 +422,7 @@ class MemberManagementScreen extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1F3A5F), Color(0xFF2F6B7A)],
+          colors: [Color(0xFF071A3D), Color(0xFF0B3A7A), Color(0xFF155E9F)],
         ),
       ),
       child: Center(
@@ -553,20 +558,14 @@ class MemberManagementScreen extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(
-    Member member,
-    MemberManagementController controller,
-  ) {
+  void _confirmDelete(Member member, MemberManagementController controller) {
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Hapus Member'),
         content: Text('Yakin ingin menghapus ${member.name}?'),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('Batal'),
-          ),
+          TextButton(onPressed: () => Get.back(), child: const Text('Batal')),
           FilledButton(
             onPressed: () {
               controller.deleteMember(member.id ?? 0);

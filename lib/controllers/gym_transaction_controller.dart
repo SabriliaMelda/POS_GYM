@@ -7,21 +7,30 @@ class GymTransactionController extends GetxController {
 
   var transactions = <GymTransaction>[].obs;
   var filteredTransactions = <GymTransaction>[].obs;
+  var packages = <GymPackage>[].obs;
+  var members = <Member>[].obs;
   var selectedTransaction = Rx<GymTransaction?>(null);
   var isLoading = false.obs;
   var selectedMember = Rx<Member?>(null);
   var selectedPackage = Rx<GymPackage?>(null);
+  var customerType = 'new'.obs;
+  // POS hanya menerima QRIS dan Debit (via mesin EDC). Tidak menerima tunai.
+  var paymentMethod = 'QRIS'.obs;
 
   @override
   void onInit() {
     super.onInit();
+    loadGymPackages();
+    loadMemberOptions();
     loadTransactions();
   }
 
   Future<void> loadTransactions() async {
     try {
       isLoading.value = true;
-      final loadedTransactions = List<GymTransaction>.from(_mockData.gymTransactions);
+      final loadedTransactions = List<GymTransaction>.from(
+        _mockData.gymTransactions,
+      );
       transactions.value = loadedTransactions;
       filteredTransactions.value = loadedTransactions;
     } catch (e) {
@@ -66,9 +75,15 @@ class GymTransactionController extends GetxController {
     }
   }
 
+  void loadMemberOptions() {
+    members.value = _mockData.searchMembers('');
+  }
+
   Future<List<GymPackage>> loadGymPackages() async {
     try {
-      return _mockData.getActiveGymPackages();
+      final loadedPackages = _mockData.getActiveGymPackages();
+      packages.value = loadedPackages;
+      return loadedPackages;
     } catch (e) {
       Get.snackbar('Kesalahan', 'Gagal memuat paket gym: $e');
       return [];
@@ -81,6 +96,36 @@ class GymTransactionController extends GetxController {
 
   void selectPackage(GymPackage package) {
     selectedPackage.value = package;
+    if (package.packageId == 'PKG-DAILY') {
+      customerType.value = 'guest';
+      selectedMember.value = null;
+    } else if (customerType.value == 'guest') {
+      customerType.value = 'new';
+    }
+  }
+
+  void setCustomerType(String type) {
+    customerType.value = type;
+    selectedMember.value = null;
+
+    if (type == 'guest') {
+      selectedPackage.value = packages.firstWhereOrNull(
+        (package) => package.packageId == 'PKG-DAILY',
+      );
+    } else if (selectedPackage.value?.packageId == 'PKG-DAILY') {
+      selectedPackage.value = null;
+    }
+  }
+
+  double get adminFee => customerType.value == 'new' ? 100000 : 0;
+
+  double get transactionTotal => (selectedPackage.value?.price ?? 0) + adminFee;
+
+  void clearTransaction() {
+    selectedMember.value = null;
+    selectedPackage.value = null;
+    customerType.value = 'new';
+    paymentMethod.value = 'QRIS';
   }
 
   Future<double> getTotalRevenue() async {
@@ -91,7 +136,10 @@ class GymTransactionController extends GetxController {
     }
   }
 
-  void filterTransactionsByDateRange(DateTime startDate, DateTime endDate) async {
+  void filterTransactionsByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
     try {
       isLoading.value = true;
       final filtered = _mockData.getGymTransactionsInRange(startDate, endDate);

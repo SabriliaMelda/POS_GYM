@@ -8,7 +8,9 @@ class FoodBeverageTransactionController extends GetxController {
   var transactions = <FoodBeverageTransaction>[].obs;
   var items = <FoodBeverageItem>[].obs;
   var cartItems = <CartItem>[].obs;
+  var members = <Member>[].obs;
   var selectedMember = Rx<Member?>(null);
+  var isMemberCustomer = false.obs;
   var isLoading = false.obs;
   var totalAmount = 0.0.obs;
   var discountAmount = 0.0.obs;
@@ -20,6 +22,11 @@ class FoodBeverageTransactionController extends GetxController {
     super.onInit();
     loadItems();
     loadTransactions();
+    loadMembers();
+  }
+
+  void loadMembers() {
+    members.value = _mockData.getActiveMembers();
   }
 
   Future<void> loadItems() async {
@@ -37,7 +44,9 @@ class FoodBeverageTransactionController extends GetxController {
   Future<void> loadTransactions() async {
     try {
       isLoading.value = true;
-      final loadedTransactions = List<FoodBeverageTransaction>.from(_mockData.foodBeverageTransactions);
+      final loadedTransactions = List<FoodBeverageTransaction>.from(
+        _mockData.foodBeverageTransactions,
+      );
       transactions.value = loadedTransactions;
     } catch (e) {
       Get.snackbar('Kesalahan', 'Gagal memuat transaksi: $e');
@@ -47,12 +56,13 @@ class FoodBeverageTransactionController extends GetxController {
   }
 
   void addToCart(FoodBeverageItem item) {
+    final price = priceFor(item);
     final existingItem = cartItems.firstWhere(
       (cartItem) => cartItem.itemId == item.id,
       orElse: () => CartItem(
         itemId: item.id ?? 0,
         itemName: item.name,
-        price: item.price,
+        price: price,
         quantity: 0,
         subtotal: 0,
       ),
@@ -61,14 +71,17 @@ class FoodBeverageTransactionController extends GetxController {
     if (cartItems.contains(existingItem)) {
       existingItem.quantity++;
     } else {
-      cartItems.add(CartItem(
-        itemId: item.id ?? 0,
-        itemName: item.name,
-        price: item.price,
-        quantity: 1,
-        subtotal: item.price,
-      ));
+      cartItems.add(
+        CartItem(
+          itemId: item.id ?? 0,
+          itemName: item.name,
+          price: price,
+          quantity: 1,
+          subtotal: price,
+        ),
+      );
     }
+    cartItems.refresh();
     calculateTotal();
   }
 
@@ -79,15 +92,22 @@ class FoodBeverageTransactionController extends GetxController {
 
   void updateCartItemQuantity(int itemId, int quantity) {
     final item = cartItems.firstWhere((cartItem) => cartItem.itemId == itemId);
-    if (quantity > 0) {
-      item.quantity = quantity;
+    if (quantity <= 0) {
+      removeFromCart(itemId);
+      return;
     }
+    item.quantity = quantity;
+    cartItems.refresh();
     calculateTotal();
   }
 
   void calculateTotal() {
-    totalAmount.value = cartItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
-    finalAmount.value = totalAmount.value - discountAmount.value + taxAmount.value;
+    totalAmount.value = cartItems.fold(
+      0.0,
+      (sum, item) => sum + (item.price * item.quantity),
+    );
+    finalAmount.value =
+        totalAmount.value - discountAmount.value + taxAmount.value;
     update();
   }
 
@@ -118,6 +138,7 @@ class FoodBeverageTransactionController extends GetxController {
   void clearCart() {
     cartItems.clear();
     selectedMember.value = null;
+    isMemberCustomer.value = false;
     totalAmount.value = 0;
     discountAmount.value = 0;
     taxAmount.value = 0;
@@ -126,6 +147,29 @@ class FoodBeverageTransactionController extends GetxController {
 
   void selectMember(Member member) {
     selectedMember.value = member;
+  }
+
+  void setMemberCustomer(bool value) {
+    isMemberCustomer.value = value;
+    if (!value) selectedMember.value = null;
+
+    cartItems.value = cartItems.map((cartItem) {
+      final item = items.firstWhere((item) => item.id == cartItem.itemId);
+      final price = priceFor(item);
+      return CartItem(
+        itemId: cartItem.itemId,
+        itemName: cartItem.itemName,
+        price: price,
+        quantity: cartItem.quantity,
+        subtotal: price * cartItem.quantity,
+      );
+    }).toList();
+    calculateTotal();
+  }
+
+  double priceFor(FoodBeverageItem item) {
+    if (!isMemberCustomer.value) return item.price;
+    return (item.price * 0.9 / 1000).round() * 1000;
   }
 
   Future<List<Member>> searchMembers(String query) async {

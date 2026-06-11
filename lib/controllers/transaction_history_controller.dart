@@ -18,9 +18,12 @@ class TransactionHistoryController extends GetxController {
   Future<void> loadTransactions() async {
     try {
       isLoading.value = true;
-      final gymTrans = List<GymTransaction>.from(_mockData.gymTransactions);
-      final fbTrans = List<FoodBeverageTransaction>.from(_mockData.foodBeverageTransactions);
-      
+      final gymTrans = List<GymTransaction>.from(_mockData.gymTransactions)
+        ..sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+      final fbTrans = List<FoodBeverageTransaction>.from(
+        _mockData.foodBeverageTransactions,
+      )..sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+
       gymTransactions.value = gymTrans;
       fbTransactions.value = fbTrans;
     } catch (e) {
@@ -30,12 +33,18 @@ class TransactionHistoryController extends GetxController {
     }
   }
 
-  Future<void> filterTransactionsByDateRange(DateTime startDate, DateTime endDate) async {
+  Future<void> filterTransactionsByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
     try {
       isLoading.value = true;
       final gymTrans = _mockData.getGymTransactionsInRange(startDate, endDate);
-      final fbTrans = _mockData.getFoodBeverageTransactionsInRange(startDate, endDate);
-      
+      final fbTrans = _mockData.getFoodBeverageTransactionsInRange(
+        startDate,
+        endDate,
+      );
+
       gymTransactions.value = gymTrans;
       fbTransactions.value = fbTrans;
     } catch (e) {
@@ -45,7 +54,9 @@ class TransactionHistoryController extends GetxController {
     }
   }
 
-  Future<List<GymTransaction>> getMemberGymTransactionHistory(int memberId) async {
+  Future<List<GymTransaction>> getMemberGymTransactionHistory(
+    int memberId,
+  ) async {
     try {
       return _mockData.getGymTransactionsByMemberId(memberId);
     } catch (e) {
@@ -53,7 +64,9 @@ class TransactionHistoryController extends GetxController {
     }
   }
 
-  Future<List<FoodBeverageTransaction>> getMemberFBTransactionHistory(int memberId) async {
+  Future<List<FoodBeverageTransaction>> getMemberFBTransactionHistory(
+    int memberId,
+  ) async {
     try {
       return _mockData.getFoodBeverageTransactionsByMemberId(memberId);
     } catch (e) {

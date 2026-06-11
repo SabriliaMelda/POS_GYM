@@ -1,0 +1,271 @@
+3.2. Analisis Aplikasi
+Analisis aplikasi merupakan tahapan yang dilakukan untuk memahami proses bisnis, permasalahan, kebutuhan pengguna, serta fungsi-fungsi yang diperlukan dalam suatu sistem. Tahapan ini menjadi dasar dalam menentukan rancangan aplikasi agar sistem yang dibangun sesuai dengan kebutuhan operasional dan dapat membantu menyelesaikan permasalahan yang terjadi pada objek penelitian.
+
+Dalam penelitian ini, analisis aplikasi dilakukan terhadap proses transaksi dan administrasi pada PT X-FIT Digital Indonesia Jakarta. Proses tersebut mencakup transaksi layanan gym berupa pendaftaran member baru, pembelian dan perpanjangan paket gym, serta daily pass bagi pelanggan non-member. Selain itu, analisis juga mencakup transaksi food and beverage, pengelolaan data member, pencatatan kunjungan member, pemantauan masa aktif member, riwayat transaksi, dan laporan.
+
+Berdasarkan hasil analisis, proses transaksi layanan gym, pendaftaran member, penggunaan kartu member berbasis Radio Frequency Identification (RFID), dan pencatatan kunjungan member masih berjalan secara terpisah. Transaksi food and beverage juga belum terhubung dengan transaksi layanan gym dalam satu sistem yang terpusat. Oleh karena itu, aplikasi yang dirancang berupa sistem informasi Point of Sale (POS) yang dapat mengintegrasikan proses transaksi dan administrasi tersebut sehingga data dapat dikelola secara lebih terstruktur, konsisten, efektif, dan efisien.
+
+3.2.1. Analisis Masalah
+Berdasarkan hasil analisis terhadap proses yang sedang berjalan pada PT X-FIT Digital Indonesia Jakarta, terdapat beberapa permasalahan sebagai berikut:
+1.	Proses transaksi layanan gym yang meliputi pendaftaran member baru, pembelian atau perpanjangan paket gym, dan daily pass bagi pelanggan non-member belum tercatat secara langsung dalam satu sistem yang terpusat.
+2.	Proses pendaftaran member, pembayaran layanan gym, pembuatan kartu member berbasis RFID, dan pencatatan kunjungan member masih dilakukan melalui media atau proses yang terpisah.
+3.	Pencatatan kunjungan member masih tersimpan dalam Microsoft Excel sehingga belum terhubung secara langsung dengan data member, masa aktif member, dan riwayat transaksi.
+4.	Data transaksi layanan gym, transaksi food and beverage, data member, data kartu member, dan data kunjungan belum terintegrasi sehingga menyulitkan pengelolaan serta pemantauan data secara menyeluruh.
+5.	Belum adanya sistem Point of Sale (POS) yang dapat membantu pengelolaan transaksi layanan gym dan food and beverage secara lebih efektif dan efisien.
+
+3.2.2 Analisis Kebutuhan
+Berdasarkan analisis masalah tersebut, sistem yang dirancang membutuhkan fungsi-fungsi yang dapat mendukung transaksi layanan gym dan food and beverage serta pengelolaan data dalam satu aplikasi. Pada tahap perancangan saat ini, antarmuka sistem difokuskan pada kebutuhan kasir sebagai pengguna yang berhubungan langsung dengan proses transaksi dan pelayanan pelanggan. Sementara itu, halaman khusus admin belum dibuat dan menjadi bagian dari pengembangan sistem selanjutnya.
+
+a. Kebutuhan Kasir
+Kasir merupakan pengguna utama pada rancangan aplikasi saat ini. Kebutuhan fungsional kasir meliputi:
+1.	Dapat melihat halaman beranda yang menampilkan ringkasan jumlah member, status member, kunjungan, transaksi, dan omzet.
+2.	Dapat melihat dan mencari data member berdasarkan nama, ID member, atau nomor telepon serta memantau status dan masa aktif member.
+3.	Dapat mencatat transaksi layanan gym yang terdiri dari pendaftaran member baru, pembelian paket gym, perpanjangan masa aktif member, dan daily pass bagi pelanggan non-member.
+4.	Dapat memilih paket gym sesuai dengan jenis transaksi dan kebutuhan pelanggan.
+5.	Dapat mencatat transaksi penjualan produk food and beverage kepada member maupun pelanggan non-member.
+6.	Dapat mencatat metode pembayaran transaksi layanan gym dan food and beverage, seperti Electronic Data Capture (EDC) dan Quick Response Code Indonesian Standard (QRIS).
+7.	Dapat mencatat kunjungan member dan memeriksa status masa aktif member sebelum proses kunjungan disimpan.
+8.	Dapat melihat dan mencari riwayat seluruh transaksi yang mencakup pendaftaran member baru, pembelian atau perpanjangan paket gym, daily pass, dan transaksi food and beverage.
+9.	Dapat melihat informasi transaksi dan data operasional secara terpusat untuk membantu pelayanan kepada member maupun pelanggan non-member.
+
+b. Kebutuhan Admin
+Halaman khusus admin belum dibuat pada tahap perancangan saat ini. Namun, untuk mendukung pengelolaan sistem secara menyeluruh, kebutuhan admin yang direncanakan pada pengembangan selanjutnya meliputi:
+1.	Dapat mengelola data member dan memperbarui informasi member.
+2.	Dapat mengelola data paket gym, harga paket, dan masa berlaku paket.
+3.	Dapat mengelola data produk food and beverage beserta harga dan ketersediaannya.
+4.	Dapat melihat dan mengelola data transaksi layanan gym serta transaksi food and beverage.
+5.	Dapat melihat data kunjungan member dan memantau masa aktif member.
+6.	Dapat melihat laporan data member, transaksi layanan gym, transaksi food and beverage, omzet, dan kunjungan member.
+
+Dengan kebutuhan tersebut, sistem POS yang dirancang diharapkan dapat menghubungkan proses transaksi layanan gym, transaksi food and beverage, pengelolaan data member, pencatatan kunjungan, dan riwayat transaksi dalam satu sistem. Pemisahan kebutuhan kasir dan admin juga dilakukan agar pengembangan sistem dapat dilaksanakan secara bertahap sesuai dengan peran dan tanggung jawab masing-masing pengguna.
+
+3.3. Rancangan Program
+Rancangan program pada sistem Point of Sale (POS) PT X-FIT Digital Indonesia Jakarta disajikan dalam bentuk pseudocode. Pseudocode digunakan untuk menggambarkan urutan proses, validasi, percabangan, perhitungan, dan penyimpanan data pada setiap fungsi utama aplikasi. Adapun pseudocode yang digunakan adalah sebagai berikut:
+
+3.3.1. Pseudocode Transaksi Layanan Gym
+
+ALGORITHM TransaksiLayananGym
+DECLARE
+    jenisTransaksi, idMember, idPaket, metodePembayaran : string
+    hargaPaket, biayaAdministrasi, totalPembayaran : real
+    dataMember, dataPaket : record
+BEGIN
+    DISPLAY pilihan jenis transaksi
+    INPUT jenisTransaksi
+
+    IF jenisTransaksi = "PERPANJANGAN" THEN
+        INPUT idMember
+        dataMember <- CariMember(idMember)
+
+        IF dataMember tidak ditemukan THEN
+            DISPLAY "Data member tidak ditemukan"
+            STOP
+        END IF
+    END IF
+
+    DISPLAY daftar paket gym aktif
+    INPUT idPaket
+    dataPaket <- CariPaketAktif(idPaket)
+
+    IF dataPaket tidak ditemukan THEN
+        DISPLAY "Paket gym harus dipilih"
+        STOP
+    END IF
+
+    hargaPaket <- dataPaket.harga
+
+    IF jenisTransaksi = "MEMBER BARU" THEN
+        biayaAdministrasi <- 100000
+        totalPembayaran <- hargaPaket + biayaAdministrasi
+    ELSE
+        biayaAdministrasi <- 0
+        totalPembayaran <- hargaPaket
+    END IF
+
+    DISPLAY totalPembayaran
+    INPUT metodePembayaran
+
+    IF metodePembayaran != "QRIS" AND metodePembayaran != "DEBIT EDC" THEN
+        DISPLAY "Metode pembayaran tidak tersedia"
+        STOP
+    END IF
+
+    IF pembayaran berhasil THEN
+        SimpanTransaksiGym(jenisTransaksi, idMember, idPaket,
+                           metodePembayaran, totalPembayaran)
+
+        IF jenisTransaksi = "MEMBER BARU" THEN
+            DISPLAY QR code formulir pendaftaran member
+            DISPLAY "Silakan mengisi data diri melalui QR code"
+        ELSE IF jenisTransaksi = "PERPANJANGAN" THEN
+            PerbaruiMasaAktifMember(idMember, dataPaket.durasi)
+        END IF
+
+        DISPLAY "Transaksi layanan gym berhasil"
+    ELSE
+        DISPLAY "Pembayaran gagal"
+    END IF
+END
+
+3.3.2. Pseudocode Transaksi Food and Beverage
+
+ALGORITHM TransaksiFoodAndBeverage
+DECLARE
+    jenisPelanggan, idMember, idProduk, metodePembayaran : string
+    jumlah : integer
+    harga, subtotal, totalPembayaran : real
+    keranjang : list
+    dataMember, dataProduk : record
+BEGIN
+    keranjang <- kosong
+    totalPembayaran <- 0
+
+    DISPLAY pilihan jenis pelanggan
+    INPUT jenisPelanggan
+
+    IF jenisPelanggan = "MEMBER" THEN
+        INPUT idMember
+        dataMember <- CariMemberAktif(idMember)
+
+        IF dataMember tidak ditemukan THEN
+            DISPLAY "Member aktif tidak ditemukan"
+            STOP
+        END IF
+    END IF
+
+    DISPLAY daftar produk food and beverage aktif
+
+    REPEAT
+        INPUT idProduk
+        dataProduk <- CariProdukAktif(idProduk)
+
+        IF dataProduk ditemukan THEN
+            INPUT jumlah
+
+            IF jumlah > 0 THEN
+                harga <- dataProduk.harga
+
+                IF jenisPelanggan = "MEMBER" THEN
+                    harga <- HitungHargaMember(harga)
+                END IF
+
+                subtotal <- harga * jumlah
+                TambahKeKeranjang(idProduk, jumlah, harga, subtotal)
+                totalPembayaran <- totalPembayaran + subtotal
+            ELSE
+                DISPLAY "Jumlah produk tidak valid"
+            END IF
+        ELSE
+            DISPLAY "Produk tidak ditemukan"
+        END IF
+    UNTIL pemilihan produk selesai
+
+    IF keranjang kosong THEN
+        DISPLAY "Produk belum dipilih"
+        STOP
+    END IF
+
+    DISPLAY totalPembayaran
+    INPUT metodePembayaran
+
+    IF metodePembayaran != "QRIS" AND metodePembayaran != "DEBIT EDC" THEN
+        DISPLAY "Metode pembayaran tidak tersedia"
+        STOP
+    END IF
+
+    IF pembayaran berhasil THEN
+        SimpanTransaksiFoodAndBeverage(jenisPelanggan, idMember,
+                                       keranjang, metodePembayaran,
+                                       totalPembayaran)
+        KosongkanKeranjang()
+        DISPLAY "Transaksi food and beverage berhasil"
+    ELSE
+        DISPLAY "Pembayaran gagal"
+    END IF
+END
+
+3.3.3. Pseudocode Pencatatan Kunjungan Member
+
+ALGORITHM PencatatanKunjungan
+DECLARE
+    metodeAkses, kodeAkses : string
+    dataMember, dataKunjungan : record
+    tanggalWaktuSekarang : datetime
+BEGIN
+    DISPLAY pilihan metode akses
+    INPUT metodeAkses
+
+    IF metodeAkses = "DAILY PASS" THEN
+        tanggalWaktuSekarang <- WaktuSekarang()
+        SimpanKunjunganDailyPass(tanggalWaktuSekarang)
+        DISPLAY "Kunjungan daily pass berhasil dicatat"
+        STOP
+    END IF
+
+    INPUT kodeAkses
+
+    IF kodeAkses kosong THEN
+        DISPLAY "Kode akses harus diisi"
+        STOP
+    END IF
+
+    IF metodeAkses = "RFID" THEN
+        dataMember <- CariMemberBerdasarkanRFID(kodeAkses)
+    ELSE IF metodeAkses = "BARCODE" THEN
+        dataMember <- CariMemberBerdasarkanBarcode(kodeAkses)
+    ELSE
+        DISPLAY "Metode akses tidak tersedia"
+        STOP
+    END IF
+
+    IF dataMember tidak ditemukan THEN
+        DISPLAY "Kartu atau barcode tidak terdaftar"
+        STOP
+    END IF
+
+    IF dataMember.status != "AKTIF" OR dataMember.masaAktif < TanggalSekarang() THEN
+        DISPLAY "Masa aktif member telah berakhir"
+        STOP
+    END IF
+
+    dataKunjungan <- CariKunjunganHariIni(dataMember.idMember)
+
+    IF dataKunjungan ditemukan THEN
+        DISPLAY "Member sudah tercatat hadir hari ini"
+        STOP
+    END IF
+
+    tanggalWaktuSekarang <- WaktuSekarang()
+    SimpanKunjunganMember(dataMember.idMember, metodeAkses,
+                          tanggalWaktuSekarang)
+    DISPLAY "Kunjungan member berhasil dicatat"
+END
+
+3.3.4. Pseudocode Riwayat Transaksi
+
+ALGORITHM RiwayatTransaksi
+DECLARE
+    transaksiGym, transaksiFoodAndBeverage : list
+    seluruhTransaksi, hasilPencarian : list
+    kataKunci, jenisTransaksi : string
+BEGIN
+    transaksiGym <- AmbilTransaksiGym()
+    transaksiFoodAndBeverage <- AmbilTransaksiFoodAndBeverage()
+
+    seluruhTransaksi <- Gabungkan(transaksiGym,
+                                  transaksiFoodAndBeverage)
+    UrutkanMenurun(seluruhTransaksi, berdasarkan tanggalTransaksi)
+    DISPLAY seluruhTransaksi
+
+    INPUT kataKunci
+    INPUT jenisTransaksi
+
+    IF kataKunci tidak kosong OR jenisTransaksi != "SEMUA" THEN
+        hasilPencarian <- SaringTransaksi(seluruhTransaksi,
+                                          kataKunci,
+                                          jenisTransaksi)
+        DISPLAY hasilPencarian
+    ELSE
+        DISPLAY seluruhTransaksi
+    END IF
+END

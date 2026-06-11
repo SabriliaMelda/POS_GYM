@@ -6,6 +6,7 @@ import 'screens/member_management/member_management_screen.dart';
 import 'screens/gym_transaction/gym_transaction_screen.dart';
 import 'screens/food_beverage_transaction/food_beverage_transaction_screen.dart';
 import 'screens/attendance/attendance_screen.dart';
+import 'screens/attendance/member_check_in_screen.dart';
 import 'screens/transaction_history/transaction_history_screen.dart';
 import 'screens/reports/reports_screen.dart';
 
@@ -97,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF0F766E),
+        selectedItemColor: const Color(0xFF071A3D),
         unselectedItemColor: const Color(0xFF94A3B8),
         selectedLabelStyle: const TextStyle(
           fontSize: 11,
@@ -127,6 +128,7 @@ final List<GetPage> getRoutes = [
     page: () => const FoodBeverageTransactionScreen(),
   ),
   GetPage(name: '/attendance', page: () => const AttendanceScreen()),
+  GetPage(name: '/member-check-in', page: () => const MemberCheckInScreen()),
   GetPage(
     name: '/transaction-history',
     page: () => const TransactionHistoryScreen(),
