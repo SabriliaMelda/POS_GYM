@@ -34,11 +34,7 @@ class MemberRepository {
   // Get member by ID
   Future<Member?> getMemberById(int id) async {
     final db = await _db;
-    final result = await db.query(
-      'members',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    final result = await db.query('members', where: 'id = ?', whereArgs: [id]);
     if (result.isEmpty) return null;
     return Member.fromMap(result.first);
   }
@@ -80,11 +76,7 @@ class MemberRepository {
   // Delete member
   Future<int> deleteMember(int id) async {
     final db = await _db;
-    return await db.delete(
-      'members',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.delete('members', where: 'id = ?', whereArgs: [id]);
   }
 
   // Get expired members
@@ -106,7 +98,8 @@ class MemberRepository {
     final sevenDaysLater = now.add(const Duration(days: 7)).toIso8601String();
     final result = await db.query(
       'members',
-      where: 'membershipExpiryDate <= ? AND membershipExpiryDate >= ? AND isActive = ?',
+      where:
+          'membershipExpiryDate <= ? AND membershipExpiryDate >= ? AND isActive = ?',
       whereArgs: [sevenDaysLater, now.toIso8601String(), 1],
     );
     return result.map((map) => Member.fromMap(map)).toList();
@@ -123,7 +116,7 @@ class MemberRepository {
   Future<int> getActiveMemberCount() async {
     final db = await _db;
     final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM members WHERE isActive = 1'
+      'SELECT COUNT(*) as count FROM members WHERE isActive = 1',
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }

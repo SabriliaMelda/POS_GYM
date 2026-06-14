@@ -75,10 +75,12 @@ class MemberManagementController extends GetxController {
       filteredMembers.value = members;
     } else {
       filteredMembers.value = members
-          .where((member) =>
-              member.name.toLowerCase().contains(query.toLowerCase()) ||
-              member.memberId.toLowerCase().contains(query.toLowerCase()) ||
-              member.phoneNumber.contains(query))
+          .where(
+            (member) =>
+                member.name.toLowerCase().contains(query.toLowerCase()) ||
+                member.memberId.toLowerCase().contains(query.toLowerCase()) ||
+                member.phoneNumber.contains(query),
+          )
           .toList();
     }
   }

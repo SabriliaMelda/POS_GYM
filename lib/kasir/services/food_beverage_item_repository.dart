@@ -32,7 +32,9 @@ class FoodBeverageItemRepository {
   }
 
   // Get food and beverage items by category
-  Future<List<FoodBeverageItem>> getFoodBeverageItemsByCategory(String category) async {
+  Future<List<FoodBeverageItem>> getFoodBeverageItemsByCategory(
+    String category,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'food_beverage_items',
@@ -67,7 +69,9 @@ class FoodBeverageItemRepository {
   }
 
   // Search food and beverage items by name
-  Future<List<FoodBeverageItem>> searchFoodBeverageItemsByName(String name) async {
+  Future<List<FoodBeverageItem>> searchFoodBeverageItemsByName(
+    String name,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'food_beverage_items',
@@ -112,7 +116,9 @@ class FoodBeverageItemRepository {
   // Get distinct categories
   Future<List<String>> getCategories() async {
     final db = await _db;
-    final result = await db.rawQuery('SELECT DISTINCT category FROM food_beverage_items WHERE isActive = 1');
+    final result = await db.rawQuery(
+      'SELECT DISTINCT category FROM food_beverage_items WHERE isActive = 1',
+    );
     return result.map((map) => map['category'] as String).toList();
   }
 }

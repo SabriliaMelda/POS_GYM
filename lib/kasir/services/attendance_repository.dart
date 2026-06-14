@@ -33,12 +33,20 @@ class AttendanceRepository {
   }
 
   // Get attendance by member ID within date range
-  Future<List<Attendance>> getAttendanceByMemberIdWithinDateRange(int memberId, DateTime startDate, DateTime endDate) async {
+  Future<List<Attendance>> getAttendanceByMemberIdWithinDateRange(
+    int memberId,
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'attendance',
       where: 'memberId = ? AND attendanceDate >= ? AND attendanceDate <= ?',
-      whereArgs: [memberId, startDate.toIso8601String(), endDate.toIso8601String()],
+      whereArgs: [
+        memberId,
+        startDate.toIso8601String(),
+        endDate.toIso8601String(),
+      ],
       orderBy: 'attendanceDate DESC',
     );
     return result.map((map) => Attendance.fromMap(map)).toList();
@@ -57,7 +65,10 @@ class AttendanceRepository {
   }
 
   // Get attendance within date range
-  Future<List<Attendance>> getAttendanceWithinDateRange(DateTime startDate, DateTime endDate) async {
+  Future<List<Attendance>> getAttendanceWithinDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'attendance',
@@ -74,7 +85,7 @@ class AttendanceRepository {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final tomorrow = today.add(const Duration(days: 1));
-    
+
     final result = await db.query(
       'attendance',
       where: 'attendanceDate >= ? AND attendanceDate < ?',
@@ -98,17 +109,15 @@ class AttendanceRepository {
   // Delete attendance
   Future<int> deleteAttendance(int id) async {
     final db = await _db;
-    return await db.delete(
-      'attendance',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.delete('attendance', where: 'id = ?', whereArgs: [id]);
   }
 
   // Get attendance count
   Future<int> getAttendanceCount() async {
     final db = await _db;
-    final result = await db.rawQuery('SELECT COUNT(*) as count FROM attendance');
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM attendance',
+    );
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
@@ -117,7 +126,7 @@ class AttendanceRepository {
     final db = await _db;
     final today = DateTime(date.year, date.month, date.day);
     final tomorrow = today.add(const Duration(days: 1));
-    
+
     final result = await db.rawQuery(
       'SELECT COUNT(*) as count FROM attendance WHERE attendanceDate >= ? AND attendanceDate < ?',
       [today.toIso8601String(), tomorrow.toIso8601String()],

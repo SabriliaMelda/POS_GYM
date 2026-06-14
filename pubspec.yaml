@@ -90,6 +90,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/images/logogym.png
     - assets/images/fnb/
     - assets/images/gym/
 

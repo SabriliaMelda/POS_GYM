@@ -238,7 +238,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         const SizedBox(height: 6),
         const Text(
           'Gabungan pendaftaran, daily pass, perpanjangan, dan penjualan F&B.',
-          style: TextStyle(color: Color(0xFFC8DDF2), fontSize: 10, height: 1.35),
+          style: TextStyle(
+            color: Color(0xFFC8DDF2),
+            fontSize: 10,
+            height: 1.35,
+          ),
         ),
       ],
     );
@@ -807,9 +811,7 @@ class _GroupedBarChartPainter extends CustomPainter {
       for (var t = 0; t < barCount; t++) {
         final type = types[t];
         final value = group.values[type] ?? 0;
-        final barHeight = niceMax <= 0
-            ? 0.0
-            : (value / niceMax) * plotHeight;
+        final barHeight = niceMax <= 0 ? 0.0 : (value / niceMax) * plotHeight;
         final left = barsStart + t * (barWidth + gap);
         final rect = Rect.fromLTWH(
           left,

@@ -8,7 +8,9 @@ class TransactionHistoryRepository {
   Future<Database> get _db async => await _databaseService.database;
 
   // Create or Insert TransactionHistory
-  Future<int> insertTransactionHistory(TransactionHistory transactionHistory) async {
+  Future<int> insertTransactionHistory(
+    TransactionHistory transactionHistory,
+  ) async {
     final db = await _db;
     return await db.insert('transaction_history', transactionHistory.toMap());
   }
@@ -16,12 +18,17 @@ class TransactionHistoryRepository {
   // Get all transaction history
   Future<List<TransactionHistory>> getAllTransactionHistory() async {
     final db = await _db;
-    final result = await db.query('transaction_history', orderBy: 'transactionDate DESC');
+    final result = await db.query(
+      'transaction_history',
+      orderBy: 'transactionDate DESC',
+    );
     return result.map((map) => TransactionHistory.fromMap(map)).toList();
   }
 
   // Get transaction history by member ID
-  Future<List<TransactionHistory>> getTransactionHistoryByMemberId(int memberId) async {
+  Future<List<TransactionHistory>> getTransactionHistoryByMemberId(
+    int memberId,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'transaction_history',
@@ -33,7 +40,9 @@ class TransactionHistoryRepository {
   }
 
   // Get transaction history by transaction ID
-  Future<TransactionHistory?> getTransactionHistoryByTransactionId(String transactionId) async {
+  Future<TransactionHistory?> getTransactionHistoryByTransactionId(
+    String transactionId,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'transaction_history',
@@ -45,7 +54,10 @@ class TransactionHistoryRepository {
   }
 
   // Get transaction history within date range
-  Future<List<TransactionHistory>> getTransactionHistoryWithinDateRange(DateTime startDate, DateTime endDate) async {
+  Future<List<TransactionHistory>> getTransactionHistoryWithinDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'transaction_history',
@@ -57,7 +69,9 @@ class TransactionHistoryRepository {
   }
 
   // Get transaction history by type
-  Future<List<TransactionHistory>> getTransactionHistoryByType(String transactionType) async {
+  Future<List<TransactionHistory>> getTransactionHistoryByType(
+    String transactionType,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'transaction_history',
@@ -69,7 +83,9 @@ class TransactionHistoryRepository {
   }
 
   // Update transaction history
-  Future<int> updateTransactionHistory(TransactionHistory transactionHistory) async {
+  Future<int> updateTransactionHistory(
+    TransactionHistory transactionHistory,
+  ) async {
     final db = await _db;
     return await db.update(
       'transaction_history',

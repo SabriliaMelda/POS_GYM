@@ -713,10 +713,7 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
                 Get.snackbar(
                   'Pembayaran Debit',
                   'Lanjutkan transaksi debit langsung di mesin EDC.',
-                  icon: const Icon(
-                    Icons.credit_card_rounded,
-                    color: _accent,
-                  ),
+                  icon: const Icon(Icons.credit_card_rounded, color: _accent),
                 );
               }
             },
@@ -726,11 +723,7 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
           const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(
-                Icons.info_outline_rounded,
-                size: 13,
-                color: _muted,
-              ),
+              const Icon(Icons.info_outline_rounded, size: 13, color: _muted),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(

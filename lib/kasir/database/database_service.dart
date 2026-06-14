@@ -21,11 +21,7 @@ class DatabaseService {
     final databasesPath = await sqflite.getDatabasesPath();
     final path = join(databasesPath, 'pos_gym.db');
 
-    return sqflite.openDatabase(
-      path,
-      version: 1,
-      onCreate: _createTables,
-    );
+    return sqflite.openDatabase(path, version: 1, onCreate: _createTables);
   }
 
   Future<void> _createTables(sqflite.Database db, int version) async {
@@ -160,12 +156,24 @@ class DatabaseService {
     // Create indexes for faster queries
     await db.execute('CREATE INDEX idx_members_memberId ON members(memberId)');
     await db.execute('CREATE INDEX idx_members_isActive ON members(isActive)');
-    await db.execute('CREATE INDEX idx_gym_transactions_memberId ON gym_transactions(memberId)');
-    await db.execute('CREATE INDEX idx_gym_transactions_transactionDate ON gym_transactions(transactionDate)');
-    await db.execute('CREATE INDEX idx_food_transactions_memberId ON food_beverage_transactions(memberId)');
-    await db.execute('CREATE INDEX idx_food_transactions_transactionDate ON food_beverage_transactions(transactionDate)');
-    await db.execute('CREATE INDEX idx_attendance_memberId ON attendance(memberId)');
-    await db.execute('CREATE INDEX idx_attendance_attendanceDate ON attendance(attendanceDate)');
+    await db.execute(
+      'CREATE INDEX idx_gym_transactions_memberId ON gym_transactions(memberId)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_gym_transactions_transactionDate ON gym_transactions(transactionDate)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_food_transactions_memberId ON food_beverage_transactions(memberId)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_food_transactions_transactionDate ON food_beverage_transactions(transactionDate)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_attendance_memberId ON attendance(memberId)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_attendance_attendanceDate ON attendance(attendanceDate)',
+    );
   }
 
   Future<void> closeDatabase() async {

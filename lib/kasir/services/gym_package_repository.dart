@@ -69,10 +69,6 @@ class GymPackageRepository {
   // Delete gym package
   Future<int> deleteGymPackage(int id) async {
     final db = await _db;
-    return await db.delete(
-      'gym_packages',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.delete('gym_packages', where: 'id = ?', whereArgs: [id]);
   }
 }

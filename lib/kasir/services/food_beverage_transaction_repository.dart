@@ -8,7 +8,9 @@ class FoodBeverageTransactionRepository {
   Future<Database> get _db async => await _databaseService.database;
 
   // Create or Insert FoodBeverageTransaction
-  Future<int> insertFoodBeverageTransaction(FoodBeverageTransaction transaction) async {
+  Future<int> insertFoodBeverageTransaction(
+    FoodBeverageTransaction transaction,
+  ) async {
     final db = await _db;
     return await db.insert('food_beverage_transactions', transaction.toMap());
   }
@@ -16,12 +18,17 @@ class FoodBeverageTransactionRepository {
   // Get all food and beverage transactions
   Future<List<FoodBeverageTransaction>> getAllFoodBeverageTransactions() async {
     final db = await _db;
-    final result = await db.query('food_beverage_transactions', orderBy: 'transactionDate DESC');
+    final result = await db.query(
+      'food_beverage_transactions',
+      orderBy: 'transactionDate DESC',
+    );
     return result.map((map) => FoodBeverageTransaction.fromMap(map)).toList();
   }
 
   // Get food and beverage transactions by member ID
-  Future<List<FoodBeverageTransaction>> getFoodBeverageTransactionsByMemberId(int memberId) async {
+  Future<List<FoodBeverageTransaction>> getFoodBeverageTransactionsByMemberId(
+    int memberId,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'food_beverage_transactions',
@@ -33,7 +40,9 @@ class FoodBeverageTransactionRepository {
   }
 
   // Get food and beverage transaction by ID
-  Future<FoodBeverageTransaction?> getFoodBeverageTransactionById(int id) async {
+  Future<FoodBeverageTransaction?> getFoodBeverageTransactionById(
+    int id,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'food_beverage_transactions',
@@ -45,7 +54,11 @@ class FoodBeverageTransactionRepository {
   }
 
   // Get food and beverage transactions within date range
-  Future<List<FoodBeverageTransaction>> getFoodBeverageTransactionsWithinDateRange(DateTime startDate, DateTime endDate) async {
+  Future<List<FoodBeverageTransaction>>
+  getFoodBeverageTransactionsWithinDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
     final db = await _db;
     final result = await db.query(
       'food_beverage_transactions',
@@ -57,7 +70,9 @@ class FoodBeverageTransactionRepository {
   }
 
   // Update food and beverage transaction
-  Future<int> updateFoodBeverageTransaction(FoodBeverageTransaction transaction) async {
+  Future<int> updateFoodBeverageTransaction(
+    FoodBeverageTransaction transaction,
+  ) async {
     final db = await _db;
     return await db.update(
       'food_beverage_transactions',
@@ -81,14 +96,17 @@ class FoodBeverageTransactionRepository {
   Future<double> getTotalFoodBeverageRevenue() async {
     final db = await _db;
     final result = await db.rawQuery(
-      'SELECT SUM(finalAmount) as total FROM food_beverage_transactions WHERE status = "completed"'
+      'SELECT SUM(finalAmount) as total FROM food_beverage_transactions WHERE status = "completed"',
     );
     if (result.isEmpty) return 0;
     return (result.first['total'] as num?)?.toDouble() ?? 0;
   }
 
   // Get total food and beverage revenue within date range
-  Future<double> getTotalFoodBeverageRevenueWithinDateRange(DateTime startDate, DateTime endDate) async {
+  Future<double> getTotalFoodBeverageRevenueWithinDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
     final db = await _db;
     final result = await db.rawQuery(
       'SELECT SUM(finalAmount) as total FROM food_beverage_transactions WHERE status = "completed" AND transactionDate >= ? AND transactionDate <= ?',
@@ -101,7 +119,9 @@ class FoodBeverageTransactionRepository {
   // Get transaction count
   Future<int> getTransactionCount() async {
     final db = await _db;
-    final result = await db.rawQuery('SELECT COUNT(*) as count FROM food_beverage_transactions');
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM food_beverage_transactions',
+    );
     return Sqflite.firstIntValue(result) ?? 0;
   }
 }

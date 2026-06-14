@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'constants/app_constants.dart';
-import 'screens/dashboard/dashboard_screen.dart';
-import 'screens/member_management/member_management_screen.dart';
-import 'screens/gym_transaction/gym_transaction_screen.dart';
-import 'screens/food_beverage_transaction/food_beverage_transaction_screen.dart';
-import 'screens/attendance/attendance_screen.dart';
-import 'screens/attendance/member_check_in_screen.dart';
-import 'screens/transaction_history/transaction_history_screen.dart';
-import 'screens/reports/reports_screen.dart';
+import 'admin/screens/reports/reports_screen.dart';
+import 'auth/login_screen.dart';
+import 'kasir/constants/app_constants.dart';
+import 'kasir/screens/dashboard/dashboard_screen.dart';
+import 'kasir/screens/member_management/member_management_screen.dart';
+import 'kasir/screens/gym_transaction/gym_transaction_screen.dart';
+import 'kasir/screens/food_beverage_transaction/food_beverage_transaction_screen.dart';
+import 'kasir/screens/attendance/attendance_screen.dart';
+import 'kasir/screens/attendance/member_check_in_screen.dart';
+import 'kasir/screens/transaction_history/transaction_history_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -29,7 +30,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         appBarTheme: const AppBarTheme(elevation: 2, centerTitle: true),
       ),
-      home: const HomeScreen(),
+      home: const LoginScreen(),
       getPages: getRoutes,
     );
   }
@@ -52,7 +53,6 @@ class _HomeScreenState extends State<HomeScreen> {
     const FoodBeverageTransactionScreen(),
     const AttendanceScreen(),
     const TransactionHistoryScreen(),
-    const ReportsScreen(),
   ];
 
   @override
@@ -91,10 +91,6 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.history),
             label: 'Riwayat',
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.assessment),
-            label: 'Laporan',
-          ),
         ],
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
@@ -116,7 +112,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // Define routes
 final List<GetPage> getRoutes = [
-  GetPage(name: '/', page: () => const HomeScreen()),
+  GetPage(name: '/', page: () => const LoginScreen()),
+  GetPage(name: '/kasir', page: () => const HomeScreen()),
+  GetPage(name: '/admin', page: () => const ReportsScreen()),
   GetPage(name: '/dashboard', page: () => const DashboardScreen()),
   GetPage(
     name: '/member-management',

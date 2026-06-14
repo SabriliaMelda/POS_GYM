@@ -237,6 +237,13 @@ BEGIN
 
     tanggalWaktuSekarang <- WaktuSekarang()
     SimpanKunjunganMember(dataMember.idMember, metodeAkses,
+                    
+                    
+                    
+                    
+                    
+                    
+                    
                           tanggalWaktuSekarang)
     DISPLAY "Kunjungan member berhasil dicatat"
 END
