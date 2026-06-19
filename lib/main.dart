@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'admin/screens/admin_main_screen.dart';
+import 'admin/screens/dashboard/admin_dashboard_screen.dart';
 import 'admin/screens/reports/reports_screen.dart';
+import 'auth/auth_service.dart';
 import 'auth/login_screen.dart';
 import 'kasir/constants/app_constants.dart';
 import 'kasir/screens/dashboard/dashboard_screen.dart';
@@ -16,7 +19,9 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.authRepository});
+
+  final AuthRepository? authRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -30,8 +35,8 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         appBarTheme: const AppBarTheme(elevation: 2, centerTitle: true),
       ),
-      home: const LoginScreen(),
-      getPages: getRoutes,
+      home: LoginScreen(authRepository: authRepository),
+      getPages: getRoutes(authRepository: authRepository),
     );
   }
 }
@@ -110,11 +115,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// Define routes
-final List<GetPage> getRoutes = [
-  GetPage(name: '/', page: () => const LoginScreen()),
+List<GetPage> getRoutes({AuthRepository? authRepository}) => [
+  GetPage(
+    name: '/',
+    page: () => LoginScreen(authRepository: authRepository),
+  ),
   GetPage(name: '/kasir', page: () => const HomeScreen()),
-  GetPage(name: '/admin', page: () => const ReportsScreen()),
+  GetPage(name: '/admin', page: () => const AdminMainScreen()),
+  GetPage(name: '/admin-dashboard', page: () => const AdminDashboardScreen()),
   GetPage(name: '/dashboard', page: () => const DashboardScreen()),
   GetPage(
     name: '/member-management',

@@ -1,0 +1,663 @@
+BAB IV
+IMPLEMENTASI DAN PENGUJIAN SOFTWARE
+
+4.1. Desain
+
+Tahap desain merupakan tahapan yang digunakan untuk menjelaskan hasil rancangan sistem yang telah dibuat sebelum sistem diimplementasikan ke dalam bentuk aplikasi. Pada penelitian ini, sistem yang dirancang adalah aplikasi Point of Sale (POS) untuk PT X-FIT Digital Indonesia Jakarta. Aplikasi ini dibuat untuk membantu proses transaksi layanan gym, transaksi food and beverage, pengelolaan data member, pencatatan kunjungan, riwayat transaksi, laporan, serta pengelolaan akun pengguna.
+
+Sistem dibangun dengan konsep client-server. Bagian client dikembangkan menggunakan Flutter sebagai antarmuka aplikasi yang digunakan oleh admin dan kasir. Bagian server dikembangkan menggunakan bahasa pemrograman Go sebagai REST API yang menangani proses autentikasi, pengelolaan akun, dan komunikasi dengan database. Database yang digunakan adalah MySQL atau MariaDB yang dijalankan melalui Laragon.
+
+Perancangan sistem ini dibuat agar data transaksi, data member, data akun kasir, dan data login dapat tersimpan secara terpusat. Dengan demikian, proses operasional pada PT X-FIT Digital Indonesia Jakarta dapat berjalan lebih terstruktur dan mengurangi risiko kesalahan pencatatan.
+
+4.1.1. Database
+
+Database digunakan sebagai tempat penyimpanan data utama pada aplikasi POS Gym. Pada tahap implementasi, database yang digunakan adalah MySQL/MariaDB dengan nama database pos_gym. Salah satu bagian penting yang sudah diimplementasikan adalah pengelolaan akun pengguna, yaitu akun admin dan akun kasir.
+
+Tabel utama yang digunakan untuk proses login dan pengelolaan akun adalah tabel users. Tabel ini menyimpan username, password yang sudah di-hash, nama lengkap, role pengguna, status aktif akun, serta informasi admin yang membuat akun tersebut. Selain itu, terdapat tabel login_logs yang digunakan untuk mencatat setiap percobaan login, baik login berhasil maupun gagal.
+
+a. Tabel users
+
+Tabel users digunakan untuk menyimpan data akun pengguna aplikasi. Akun pengguna dibedakan menjadi dua role, yaitu admin dan kasir. Admin memiliki hak akses untuk membuat akun kasir, mengubah password kasir, menghapus akun kasir, serta mengubah username dan password admin sendiri. Kasir hanya digunakan untuk masuk ke halaman operasional POS.
+
+Struktur tabel users adalah sebagai berikut:
+
+No.  Nama Field              Tipe Data                 Keterangan
+1.   id                      BIGINT UNSIGNED           Primary key, auto increment
+2.   username                VARCHAR(50)               Username akun
+3.   password_hash           VARCHAR(255)              Password yang sudah di-hash bcrypt
+4.   full_name               VARCHAR(100)              Nama lengkap pengguna
+5.   role                    ENUM('admin','kasir')     Hak akses pengguna
+6.   is_active               TINYINT(1)                Status aktif akun
+7.   must_change_password    TINYINT(1)                Penanda wajib ganti password
+8.   created_by              BIGINT UNSIGNED           ID admin pembuat akun
+9.   last_login_at           DATETIME                  Waktu login terakhir
+10.  password_changed_at     DATETIME                  Waktu perubahan password
+11.  created_at              DATETIME                  Waktu data dibuat
+12.  updated_at              DATETIME                  Waktu data diperbarui
+
+Relasi pada tabel users terdapat pada field created_by yang mengarah ke field id pada tabel users itu sendiri. Relasi ini digunakan untuk mengetahui admin yang membuat akun kasir. Akun admin awal dapat dibuat tanpa created_by, sedangkan akun kasir wajib memiliki created_by yang menunjuk ke akun admin aktif.
+
+b. Tabel login_logs
+
+Tabel login_logs digunakan untuk menyimpan catatan setiap proses login. Tabel ini membantu admin mengetahui riwayat akses ke dalam sistem, termasuk percobaan login yang gagal karena username tidak ditemukan, password salah, akun tidak aktif, atau role tidak sesuai.
+
+Struktur tabel login_logs adalah sebagai berikut:
+
+No.  Nama Field          Tipe Data                 Keterangan
+1.   id                  BIGINT UNSIGNED           Primary key, auto increment
+2.   user_id             BIGINT UNSIGNED           ID user yang login
+3.   username_input      VARCHAR(50)               Username yang dimasukkan
+4.   status              ENUM('success','failed')  Status login
+5.   ip_address          VARCHAR(45)               Alamat IP pengguna
+6.   user_agent          VARCHAR(255)              Informasi perangkat/browser
+7.   failure_reason      VARCHAR(100)              Alasan login gagal
+8.   logged_in_at        DATETIME                  Waktu proses login
+
+Relasi tabel login_logs terdapat pada field user_id yang mengarah ke tabel users. Field user_id dapat bernilai NULL karena percobaan login dapat dilakukan menggunakan username yang tidak terdaftar.
+
+c. Keamanan Password
+
+Password pengguna tidak disimpan dalam bentuk teks asli. Setiap password yang dimasukkan oleh admin atau kasir akan diubah terlebih dahulu menjadi hash menggunakan algoritma bcrypt. Dengan cara ini, password asli tidak dapat langsung dibaca dari database. Pada saat proses login, sistem hanya membandingkan password yang dimasukkan pengguna dengan hash password yang tersimpan pada database.
+
+Contoh alur penyimpanan password adalah sebagai berikut:
+
+1. Admin mengisi username, nama, dan password awal kasir.
+2. Backend menerima data dari aplikasi Flutter.
+3. Backend membuat hash password menggunakan bcrypt.
+4. Hash password disimpan ke field password_hash.
+5. Kasir dapat login menggunakan username dan password yang dibuat admin.
+
+d. Aturan Hak Akses Database
+
+Aturan hak akses pada database didukung oleh logika backend. Akun admin memiliki hak untuk membuat akun kasir. Akun kasir tidak dapat membuat akun baru. Selain itu, admin dapat mengubah password akun kasir melalui halaman akun admin. Proses ini dilakukan melalui endpoint backend yang wajib menggunakan token admin.
+
+Dengan rancangan database tersebut, sistem dapat menjaga data akun pengguna agar lebih aman, terstruktur, dan sesuai dengan kebutuhan operasional aplikasi POS Gym.
+
+4.1.2. Software Architecture
+
+Arsitektur software pada aplikasi POS Gym menggunakan pendekatan client-server. Flutter berperan sebagai client atau antarmuka pengguna, sedangkan backend Go berperan sebagai server yang menyediakan REST API. Database MySQL/MariaDB digunakan sebagai tempat penyimpanan data.
+
+Arsitektur sistem dapat dijelaskan sebagai berikut:
+
+1. Pengguna membuka aplikasi Flutter.
+2. Pengguna melakukan login sebagai admin atau kasir.
+3. Flutter mengirim request login ke backend Go.
+4. Backend membaca data user dari database.
+5. Backend memverifikasi password menggunakan bcrypt.
+6. Jika login berhasil, backend mengirim token autentikasi ke Flutter.
+7. Flutter menyimpan token pada local storage menggunakan SharedPreferences.
+8. Setiap request fitur admin mengirim token pada header Authorization.
+9. Backend memvalidasi token dan role pengguna.
+10. Backend menyimpan atau mengambil data dari database.
+
+Komponen utama pada arsitektur software adalah sebagai berikut:
+
+a. Flutter Client
+
+Flutter Client digunakan untuk membangun antarmuka aplikasi. Pada aplikasi ini terdapat halaman login, halaman kasir, halaman admin, dashboard, transaksi gym, transaksi food and beverage, absensi, riwayat transaksi, laporan, serta halaman akun admin.
+
+Flutter bertugas untuk:
+1. Menampilkan antarmuka kepada pengguna.
+2. Menerima input dari pengguna.
+3. Mengirim data ke backend melalui HTTP request.
+4. Menampilkan pesan berhasil atau gagal berdasarkan respons backend.
+5. Menyimpan token login secara lokal.
+
+b. Backend Go
+
+Backend Go digunakan sebagai penghubung antara aplikasi Flutter dan database. Backend tidak hanya menerima data dari Flutter, tetapi juga melakukan validasi, autentikasi, otorisasi role, hashing password, dan penyimpanan data.
+
+Backend bertugas untuk:
+1. Memproses login admin dan kasir.
+2. Membuat token login setelah autentikasi berhasil.
+3. Memvalidasi token pada endpoint yang membutuhkan login.
+4. Memastikan hanya admin yang dapat mengelola akun kasir.
+5. Mengubah password menjadi hash bcrypt.
+6. Menyimpan data pengguna ke database.
+7. Mencatat log percobaan login.
+
+c. Database MySQL/MariaDB
+
+Database digunakan untuk menyimpan data akun pengguna dan log login. Pada pengembangan berikutnya, database juga digunakan untuk menyimpan data member, paket gym, produk food and beverage, transaksi, absensi, dan laporan.
+
+d. Pseudocode Login
+
+Pseudocode proses login pada aplikasi POS Gym adalah sebagai berikut:
+
+ALGORITHM LoginUser
+DECLARE
+    username, password, role : string
+    user : record
+BEGIN
+    INPUT username
+    INPUT password
+    INPUT role
+
+    IF username kosong OR password kosong THEN
+        DISPLAY "Username dan password wajib diisi"
+        STOP
+    END IF
+
+    user <- CariUserBerdasarkanUsername(username)
+
+    IF user tidak ditemukan THEN
+        SimpanLogLogin(username, "failed", "username tidak ditemukan")
+        DISPLAY "Username atau password salah"
+        STOP
+    END IF
+
+    IF user.is_active = false THEN
+        SimpanLogLogin(username, "failed", "akun tidak aktif")
+        DISPLAY "Akun tidak aktif"
+        STOP
+    END IF
+
+    IF user.role tidak sama dengan role yang dipilih THEN
+        SimpanLogLogin(username, "failed", "role tidak sesuai")
+        DISPLAY "Role akun tidak sesuai"
+        STOP
+    END IF
+
+    IF PasswordTidakSesuai(user.password_hash, password) THEN
+        SimpanLogLogin(username, "failed", "password salah")
+        DISPLAY "Username atau password salah"
+        STOP
+    END IF
+
+    UpdateWaktuLogin(user.id)
+    SimpanLogLogin(username, "success", "")
+    token <- BuatToken(user)
+    DISPLAY "Login berhasil"
+END
+
+e. Pseudocode Pembuatan Akun Kasir
+
+Pseudocode proses pembuatan akun kasir oleh admin adalah sebagai berikut:
+
+ALGORITHM BuatAkunKasir
+DECLARE
+    token, nama, username, password : string
+    admin : record
+BEGIN
+    token <- AmbilTokenLogin()
+    admin <- ValidasiToken(token)
+
+    IF admin tidak valid OR admin.role != "admin" THEN
+        DISPLAY "Hanya admin yang dapat membuat akun kasir"
+        STOP
+    END IF
+
+    INPUT nama
+    INPUT username
+    INPUT password
+
+    IF nama kosong OR username kosong OR password kosong THEN
+        DISPLAY "Data akun wajib diisi"
+        STOP
+    END IF
+
+    IF panjang(password) < 6 THEN
+        DISPLAY "Password minimal 6 karakter"
+        STOP
+    END IF
+
+    passwordHash <- HashPasswordBcrypt(password)
+
+    SimpanUser(
+        username,
+        passwordHash,
+        nama,
+        role = "kasir",
+        is_active = true,
+        must_change_password = true,
+        created_by = admin.id
+    )
+
+    DISPLAY "Akun kasir berhasil dibuat"
+END
+
+f. Pseudocode Reset Password Kasir
+
+Pseudocode proses reset password kasir oleh admin adalah sebagai berikut:
+
+ALGORITHM ResetPasswordKasir
+DECLARE
+    token, passwordBaru : string
+    admin, kasir : record
+BEGIN
+    token <- AmbilTokenLogin()
+    admin <- ValidasiToken(token)
+
+    IF admin tidak valid OR admin.role != "admin" THEN
+        DISPLAY "Hanya admin yang dapat mengubah password kasir"
+        STOP
+    END IF
+
+    INPUT idKasir
+    INPUT passwordBaru
+
+    IF panjang(passwordBaru) < 6 THEN
+        DISPLAY "Password baru minimal 6 karakter"
+        STOP
+    END IF
+
+    kasir <- CariUserBerdasarkanID(idKasir)
+
+    IF kasir tidak ditemukan OR kasir.role != "kasir" THEN
+        DISPLAY "Akun kasir tidak ditemukan"
+        STOP
+    END IF
+
+    passwordHash <- HashPasswordBcrypt(passwordBaru)
+
+    UpdatePasswordKasir(idKasir, passwordHash)
+    DISPLAY "Password kasir berhasil diperbarui"
+END
+
+4.1.3. User Interface
+
+User interface atau antarmuka pengguna dirancang agar dapat digunakan dengan mudah oleh admin dan kasir. Tampilan aplikasi dibuat sederhana, rapi, dan menyesuaikan kebutuhan operasional POS Gym. Pengguna dapat berpindah menu melalui navigasi bawah sesuai fitur yang tersedia.
+
+a. Halaman Login
+
+Halaman login digunakan sebagai pintu masuk aplikasi. Pada halaman ini pengguna memilih role, yaitu admin atau kasir, kemudian memasukkan username dan password. Setelah tombol login ditekan, aplikasi mengirim data login ke backend. Jika login berhasil, pengguna diarahkan ke halaman sesuai role. Admin diarahkan ke halaman admin, sedangkan kasir diarahkan ke halaman kasir.
+
+Gambar 4.1 Halaman Login Aplikasi POS Gym
+
+b. Halaman Dashboard Kasir
+
+Halaman dashboard kasir menampilkan ringkasan informasi operasional, seperti jumlah member, transaksi, kunjungan, dan data pendukung lainnya. Halaman ini membantu kasir melihat kondisi operasional secara cepat sebelum melakukan transaksi.
+
+Gambar 4.2 Halaman Dashboard Kasir
+
+c. Halaman Transaksi Layanan Gym
+
+Halaman transaksi layanan gym digunakan untuk mencatat transaksi pendaftaran member baru, perpanjangan paket gym, dan daily pass. Pada halaman ini kasir dapat memilih jenis transaksi, memilih paket gym, melihat total pembayaran, dan memilih metode pembayaran.
+
+Gambar 4.3 Halaman Transaksi Layanan Gym
+
+d. Halaman Transaksi Food and Beverage
+
+Halaman transaksi food and beverage digunakan untuk mencatat penjualan produk makanan dan minuman. Kasir dapat memilih produk, menentukan jumlah, menghitung total pembayaran, dan menyimpan transaksi.
+
+Gambar 4.4 Halaman Transaksi Food and Beverage
+
+e. Halaman Data Member
+
+Halaman data member digunakan untuk menampilkan daftar member yang tersimpan pada sistem. Kasir dapat melihat informasi member, mencari data member, dan memantau status masa aktif member.
+
+Gambar 4.5 Halaman Data Member
+
+f. Halaman Absensi
+
+Halaman absensi digunakan untuk mencatat kunjungan member. Data kunjungan ini digunakan sebagai pendukung administrasi dan pemantauan aktivitas member.
+
+Gambar 4.6 Halaman Absensi Member
+
+g. Halaman Riwayat Transaksi
+
+Halaman riwayat transaksi digunakan untuk menampilkan seluruh transaksi yang telah dilakukan. Riwayat transaksi mencakup transaksi layanan gym, daily pass, perpanjangan paket, dan transaksi food and beverage.
+
+Gambar 4.7 Halaman Riwayat Transaksi
+
+h. Halaman Admin
+
+Halaman admin digunakan oleh pengguna dengan role admin. Pada halaman ini terdapat menu dashboard admin, data member, master data, operasi, laporan, dan akun. Admin dapat memantau data operasional dan mengelola kebutuhan sistem.
+
+Gambar 4.8 Halaman Dashboard Admin
+
+i. Halaman Akun Admin
+
+Halaman akun admin digunakan untuk mengelola akun pengguna. Pada halaman ini admin dapat membuat akun kasir, melihat daftar akun kasir, mengubah password kasir, menghapus akun kasir, serta mengubah username dan password admin sendiri. Fitur ini dibuat agar pengelolaan akun dilakukan secara terpusat dan tidak tersedia fitur pendaftaran akun secara bebas pada halaman login.
+
+Gambar 4.9 Halaman Akun Admin
+
+4.2. Code Generation
+
+Code generation merupakan tahap implementasi rancangan sistem ke dalam bentuk kode program. Pada penelitian ini, aplikasi client dibuat menggunakan Flutter, sedangkan backend dibuat menggunakan bahasa Go. Flutter digunakan untuk membangun tampilan aplikasi, sedangkan Go digunakan untuk membuat REST API dan menghubungkan sistem dengan database.
+
+a. Implementasi Login pada Flutter
+
+Proses login pada Flutter dilakukan dengan mengirim username, password, dan role ke endpoint backend. Jika login berhasil, token dan data pengguna disimpan pada SharedPreferences agar dapat digunakan kembali saat mengakses fitur yang membutuhkan autentikasi.
+
+Contoh bagian program login adalah sebagai berikut:
+
+Future<LoginSession> login({
+  required String username,
+  required String password,
+  required String role,
+}) async {
+  final uri = Uri.parse('$_baseUrl/api/auth/login');
+
+  final response = await _client.post(
+    uri,
+    headers: const {'Content-Type': 'application/json'},
+    body: jsonEncode({
+      'username': username,
+      'password': password,
+      'role': role,
+    }),
+  );
+
+  final payload = jsonDecode(response.body);
+  if (response.statusCode != 200) {
+    throw AuthException(payload['error']);
+  }
+
+  final session = LoginSession.fromJson(payload);
+  await _saveSession(session);
+  return session;
+}
+
+b. Implementasi Login pada Backend Go
+
+Backend menerima data login dari Flutter, kemudian mencari user berdasarkan username. Setelah user ditemukan, backend memeriksa status aktif akun, role pengguna, dan kecocokan password menggunakan bcrypt.
+
+Contoh bagian program login pada backend adalah sebagai berikut:
+
+func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+    var req loginRequest
+    if err := httpx.ReadJSON(w, r, &req); err != nil {
+        httpx.WriteError(w, http.StatusBadRequest, "request JSON tidak valid")
+        return
+    }
+
+    user, err := h.findUserByUsername(req.Username)
+    if err != nil {
+        httpx.WriteError(w, http.StatusUnauthorized, "username atau password salah")
+        return
+    }
+
+    if err := auth.ComparePassword(user.PasswordHash, req.Password); err != nil {
+        httpx.WriteError(w, http.StatusUnauthorized, "username atau password salah")
+        return
+    }
+
+    token, err := auth.GenerateToken(claims, h.cfg.JWTSecret)
+    if err != nil {
+        httpx.WriteError(w, http.StatusInternalServerError, "gagal membuat token")
+        return
+    }
+
+    httpx.WriteJSON(w, http.StatusOK, response)
+}
+
+c. Implementasi Hash Password
+
+Password tidak disimpan langsung ke database, tetapi diubah menjadi hash terlebih dahulu. Proses ini dilakukan menggunakan bcrypt.
+
+Contoh bagian program hash password adalah sebagai berikut:
+
+func HashPassword(plainPassword string) (string, error) {
+    hash, err := bcrypt.GenerateFromPassword(
+        []byte(plainPassword),
+        bcrypt.DefaultCost,
+    )
+    if err != nil {
+        return "", err
+    }
+    return string(hash), nil
+}
+
+d. Implementasi Pembuatan Akun Kasir
+
+Pembuatan akun kasir hanya dapat dilakukan oleh admin. Backend melakukan validasi token dan role sebelum menyimpan akun kasir ke database.
+
+Contoh bagian program pembuatan akun kasir adalah sebagai berikut:
+
+func (h *AuthHandler) CreateCashier(w http.ResponseWriter, r *http.Request) {
+    claims, ok := h.requireAdmin(w, r)
+    if !ok {
+        return
+    }
+
+    adminID, _ := strconv.ParseUint(claims.Subject, 10, 64)
+
+    var req createCashierRequest
+    if err := httpx.ReadJSON(w, r, &req); err != nil {
+        httpx.WriteError(w, http.StatusBadRequest, "request JSON tidak valid")
+        return
+    }
+
+    passwordHash, err := auth.HashPassword(req.Password)
+    if err != nil {
+        httpx.WriteError(w, http.StatusInternalServerError, "gagal membuat hash password")
+        return
+    }
+
+    h.db.Exec(`
+        INSERT INTO users (
+            username, password_hash, full_name, role,
+            is_active, must_change_password, created_by
+        ) VALUES (?, ?, ?, 'kasir', 1, 1, ?)
+    `, req.Username, passwordHash, req.FullName, adminID)
+}
+
+e. Implementasi Reset Password Kasir
+
+Reset password kasir dilakukan oleh admin melalui halaman akun. Admin memilih akun kasir, memasukkan password baru, kemudian sistem mengirim request ke backend. Backend memvalidasi role admin, membuat hash password baru, dan memperbarui data password kasir pada database.
+
+Contoh bagian program reset password kasir adalah sebagai berikut:
+
+func (h *AuthHandler) ResetCashierPassword(w http.ResponseWriter, r *http.Request) {
+    if _, ok := h.requireAdmin(w, r); !ok {
+        return
+    }
+
+    cashierID, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+    if err != nil || cashierID == 0 {
+        httpx.WriteError(w, http.StatusBadRequest, "ID kasir tidak valid")
+        return
+    }
+
+    var req resetCashierPasswordRequest
+    if err := httpx.ReadJSON(w, r, &req); err != nil {
+        httpx.WriteError(w, http.StatusBadRequest, "request JSON tidak valid")
+        return
+    }
+
+    passwordHash, err := auth.HashPassword(req.Password)
+    if err != nil {
+        httpx.WriteError(w, http.StatusInternalServerError, "gagal membuat hash password")
+        return
+    }
+
+    h.db.Exec(`
+        UPDATE users
+        SET password_hash = ?,
+            must_change_password = 1,
+            password_changed_at = NOW()
+        WHERE id = ?
+            AND role = 'kasir'
+    `, passwordHash, cashierID)
+}
+
+f. Implementasi Halaman Akun Admin pada Flutter
+
+Halaman akun admin memiliki beberapa fungsi, yaitu membuat akun kasir, menampilkan daftar akun kasir, mengubah password kasir, menghapus akun kasir, serta mengubah profil admin. Pada bagian password, aplikasi menyediakan ikon mata untuk menampilkan atau menyembunyikan password agar admin dapat memeriksa input sebelum disimpan.
+
+Contoh bagian program input password adalah sebagai berikut:
+
+class _PasswordInput extends StatefulWidget {
+  const _PasswordInput({required this.controller, required this.label});
+
+  final TextEditingController controller;
+  final String label;
+
+  @override
+  State<_PasswordInput> createState() => _PasswordInputState();
+}
+
+class _PasswordInputState extends State<_PasswordInput> {
+  var _obscureText = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: widget.controller,
+      obscureText: _obscureText,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        suffixIcon: IconButton(
+          icon: Icon(
+            _obscureText
+                ? Icons.visibility_off_rounded
+                : Icons.visibility_rounded,
+          ),
+          onPressed: () {
+            setState(() => _obscureText = !_obscureText);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+g. Implementasi Endpoint Backend
+
+Endpoint yang digunakan pada implementasi autentikasi dan pengelolaan akun adalah sebagai berikut:
+
+No.  Method   Endpoint                                      Fungsi
+1.   POST     /api/auth/login                               Login admin atau kasir
+2.   PATCH    /api/auth/me                                  Mengubah profil admin sendiri
+3.   GET      /api/admin/users/cashiers                     Menampilkan daftar akun kasir
+4.   POST     /api/admin/users/cashiers                     Membuat akun kasir
+5.   PATCH    /api/admin/users/cashiers/{id}/password       Mengubah password kasir
+6.   DELETE   /api/admin/users/cashiers/{id}                Menghapus akun kasir
+
+4.3. Testing
+
+Pengujian dilakukan untuk memastikan bahwa fungsi-fungsi pada aplikasi berjalan sesuai kebutuhan. Metode pengujian yang digunakan adalah black box testing, yaitu pengujian yang berfokus pada input dan output sistem tanpa melihat struktur kode program secara detail.
+
+Pengujian dilakukan pada fitur login, pembuatan akun kasir, pengubahan password admin, reset password kasir, penghapusan akun kasir, serta validasi hak akses admin dan kasir.
+
+a. Pengujian Login
+
+No.  Skenario Pengujian                         Input                                Hasil yang Diharapkan                         Kesimpulan
+1.   Login admin dengan data benar              Username admin, password benar        Masuk ke halaman admin                         Valid
+2.   Login kasir dengan data benar              Username kasir, password benar        Masuk ke halaman kasir                         Valid
+3.   Login dengan password salah                Username benar, password salah        Sistem menampilkan pesan gagal login           Valid
+4.   Login dengan username kosong               Username kosong                       Sistem menampilkan validasi input              Valid
+5.   Login dengan role tidak sesuai             Akun kasir memilih role admin         Sistem menolak login                           Valid
+
+b. Pengujian Pembuatan Akun Kasir
+
+No.  Skenario Pengujian                         Input                                Hasil yang Diharapkan                         Kesimpulan
+1.   Admin membuat akun kasir valid             Nama, username, password valid        Akun kasir tersimpan ke database               Valid
+2.   Username kasir sudah digunakan             Username yang sama                    Sistem menampilkan pesan username digunakan    Valid
+3.   Password kurang dari 6 karakter            Password pendek                       Sistem menampilkan validasi password           Valid
+4.   Data akun belum lengkap                    Nama atau username kosong             Sistem menampilkan validasi data wajib diisi   Valid
+5.   Kasir mencoba membuat akun                 Token role kasir                      Sistem menolak akses                           Valid
+
+c. Pengujian Reset Password Kasir
+
+No.  Skenario Pengujian                         Input                                Hasil yang Diharapkan                         Kesimpulan
+1.   Admin mengubah password kasir              Password baru valid                   Password kasir berhasil diperbarui             Valid
+2.   Password baru kurang dari 6 karakter       Password pendek                       Sistem menampilkan validasi password           Valid
+3.   ID kasir tidak ditemukan                   ID tidak terdaftar                    Sistem menampilkan akun tidak ditemukan        Valid
+4.   Kasir mencoba mengubah password kasir      Token role kasir                      Sistem menolak akses                           Valid
+5.   Password baru digunakan untuk login        Username kasir dan password baru      Kasir berhasil login                           Valid
+
+d. Pengujian Penghapusan Akun Kasir
+
+No.  Skenario Pengujian                         Input                                Hasil yang Diharapkan                         Kesimpulan
+1.   Admin menghapus akun kasir                 ID kasir valid                        Akun kasir terhapus dari database              Valid
+2.   Admin membatalkan hapus akun               Tombol batal                          Akun kasir tetap tersimpan                     Valid
+3.   ID kasir tidak ditemukan                   ID tidak terdaftar                    Sistem menampilkan akun tidak ditemukan        Valid
+4.   Kasir mencoba menghapus akun               Token role kasir                      Sistem menolak akses                           Valid
+
+e. Pengujian Ubah Profil Admin
+
+No.  Skenario Pengujian                         Input                                Hasil yang Diharapkan                         Kesimpulan
+1.   Admin mengubah username                    Username baru dan password saat ini   Username admin diperbarui                      Valid
+2.   Admin mengubah password sendiri            Password saat ini dan password baru   Password admin diperbarui                      Valid
+3.   Password saat ini salah                    Password lama salah                   Sistem menampilkan pesan password salah        Valid
+4.   Username sudah digunakan                   Username milik akun lain              Sistem menampilkan pesan username digunakan    Valid
+5.   Password baru terlalu pendek               Password kurang dari 6 karakter       Sistem menampilkan validasi password           Valid
+
+f. Pengujian Antarmuka Password
+
+No.  Skenario Pengujian                         Input                                Hasil yang Diharapkan                         Kesimpulan
+1.   Password dalam kondisi tersembunyi          Field password aktif                  Karakter password tidak terlihat               Valid
+2.   Menekan ikon mata                          Klik ikon pada field password         Password terlihat                              Valid
+3.   Menekan ikon mata kembali                  Klik ikon pada field password         Password disembunyikan kembali                 Valid
+
+Berdasarkan hasil pengujian tersebut, fitur utama yang diuji dapat berjalan sesuai dengan kebutuhan. Sistem mampu memvalidasi input, membedakan hak akses admin dan kasir, menyimpan password dalam bentuk hash, serta menampilkan pesan kesalahan apabila data yang dimasukkan tidak sesuai.
+
+4.4. Support
+
+Support merupakan tahapan yang menjelaskan kebutuhan pendukung agar aplikasi dapat dijalankan dengan baik. Kebutuhan pendukung meliputi tempat publikasi software, lingkungan menjalankan aplikasi, serta spesifikasi hardware dan software.
+
+4.4.1. Publikasi Software
+
+Aplikasi POS Gym dirancang untuk digunakan pada lingkungan operasional PT X-FIT Digital Indonesia Jakarta. Pada tahap pengembangan, aplikasi dijalankan secara lokal menggunakan Flutter dan backend Go. Backend berjalan pada alamat lokal http://localhost:8080, sedangkan database dijalankan menggunakan MySQL/MariaDB melalui Laragon.
+
+Untuk penggunaan operasional, aplikasi dapat dipublikasikan dalam beberapa bentuk, yaitu:
+
+1. Aplikasi desktop Windows untuk digunakan pada komputer kasir.
+2. Aplikasi Android untuk digunakan pada tablet kasir.
+3. Backend API dijalankan pada server lokal atau komputer operasional.
+4. Database MySQL/MariaDB dijalankan pada server lokal agar dapat diakses oleh aplikasi.
+
+Pada tahap implementasi lokal, alur publikasi software adalah sebagai berikut:
+
+1. Menjalankan MySQL/MariaDB melalui Laragon.
+2. Membuat database pos_gym dan tabel yang dibutuhkan.
+3. Menjalankan backend Go.
+4. Menjalankan aplikasi Flutter pada perangkat yang digunakan.
+5. Admin login dan membuat akun kasir.
+6. Kasir login menggunakan akun yang dibuat oleh admin.
+7. Sistem digunakan untuk mencatat transaksi dan administrasi.
+
+4.4.2. Spesifikasi Hardware dan Software
+
+a. Spesifikasi Hardware Pengembangan
+
+Spesifikasi hardware yang digunakan untuk proses pengembangan aplikasi adalah sebagai berikut:
+
+No.  Komponen             Spesifikasi Minimum
+1.   Processor            Intel Core i3 atau setara
+2.   RAM                  8 GB
+3.   Storage              256 GB SSD/HDD
+4.   Monitor              Resolusi 1366 x 768 pixel
+5.   Perangkat Input      Keyboard dan mouse
+6.   Perangkat Tambahan   RFID Reader atau barcode scanner sesuai kebutuhan
+
+b. Spesifikasi Hardware Penggunaan
+
+Spesifikasi hardware yang disarankan untuk penggunaan aplikasi di lokasi operasional adalah sebagai berikut:
+
+No.  Komponen             Spesifikasi Minimum
+1.   Komputer Kasir       Intel Core i3 atau setara
+2.   RAM                  4 GB atau lebih
+3.   Storage              128 GB
+4.   Tablet Android       RAM 4 GB, layar 8 inci atau lebih
+5.   Jaringan             LAN atau WiFi lokal
+6.   Perangkat Tambahan   Printer struk, RFID Reader, barcode scanner
+
+c. Spesifikasi Software Pengembangan
+
+Software yang digunakan dalam proses pengembangan aplikasi adalah sebagai berikut:
+
+No.  Software             Keterangan
+1.   Sistem Operasi       Windows
+2.   Flutter SDK          Framework aplikasi client
+3.   Dart SDK             Bahasa pemrograman Flutter
+4.   Go                   Bahasa pemrograman backend
+5.   Visual Studio Code   Code editor
+6.   Laragon              Web server lokal dan database environment
+7.   MySQL/MariaDB        Database
+8.   phpMyAdmin           Pengelolaan database
+
+d. Spesifikasi Software Penggunaan
+
+Software yang dibutuhkan untuk menjalankan aplikasi adalah sebagai berikut:
+
+No.  Software             Keterangan
+1.   Sistem Operasi       Windows atau Android
+2.   Aplikasi POS Gym     Aplikasi client Flutter
+3.   Backend Go           REST API aplikasi
+4.   MySQL/MariaDB        Database sistem
+5.   Browser              Digunakan untuk membuka phpMyAdmin jika diperlukan
+
+Dengan dukungan hardware dan software tersebut, aplikasi POS Gym dapat dijalankan dan digunakan untuk membantu proses transaksi layanan gym, transaksi food and beverage, pengelolaan data member, pencatatan kunjungan, riwayat transaksi, laporan, serta pengelolaan akun admin dan kasir pada PT X-FIT Digital Indonesia Jakarta.

@@ -1,0 +1,505 @@
+DATABASE LOGIN POS GYM
+Laragon + MySQL/MariaDB + phpMyAdmin + Backend Golang
+=====================================================
+
+FOKUS TAHAP INI
+----------------
+Pada tahap ini kita hanya membuat database untuk login.
+
+Aturannya:
+
+1. Tidak ada fitur daftar akun dari halaman login.
+2. Sistem memiliki satu akun admin awal.
+3. Hanya admin yang boleh membuat akun baru.
+4. Akun yang dibuat admin pada tahap ini adalah akun kasir.
+5. Kasir hanya dapat login dan tidak dapat membuat akun lain.
+6. Password tidak boleh disimpan sebagai teks biasa.
+7. Password disimpan dalam bentuk hash bcrypt.
+
+Alur penggunaan:
+
+Admin awal -> login -> membuat akun kasir -> kasir dapat login
+
+
+1. MENJALANKAN DATABASE DARI LARAGON
+------------------------------------
+1. Buka Laragon.
+2. Klik "Start All".
+3. Pastikan MySQL berstatus aktif.
+4. Buka Menu > MySQL > phpMyAdmin.
+
+Alternatif alamat phpMyAdmin:
+
+http://localhost/phpmyadmin
+
+Konfigurasi bawaan Laragon biasanya:
+
+Host     : 127.0.0.1
+Port     : 3306
+Username : root
+Password : kosong
+
+phpMyAdmin hanya alat untuk mengelola database. Database yang sebenarnya adalah
+MySQL atau MariaDB yang dijalankan oleh Laragon.
+
+
+2. MEMBUAT DATABASE LOGIN
+-------------------------
+1. Buka phpMyAdmin.
+2. Klik menu "SQL".
+3. Salin seluruh script pada bagian "SCRIPT DATABASE".
+4. Tempel ke kolom SQL.
+5. Klik "Go" atau "Kirim".
+
+Jika database.txt versi sebelumnya sudah pernah dijalankan:
+
+1. Jangan langsung memakai tabel users versi lama.
+2. Jika database masih percobaan dan belum berisi data penting, buka database
+   pos_gym lalu pilih Operations > Drop the database.
+3. Setelah database lama dihapus, jalankan script dalam file ini dari awal.
+4. Jika sudah ada data penting, lakukan backup dan migrasi. Jangan menghapus
+   database tersebut secara langsung.
+
+
+3. SCRIPT DATABASE
+------------------
+
+CREATE DATABASE IF NOT EXISTS pos_gym
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE pos_gym;
+
+-- Tabel utama akun aplikasi.
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+  username VARCHAR(50) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(100) NOT NULL,
+
+  role ENUM('admin', 'kasir') NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  must_change_password TINYINT(1) NOT NULL DEFAULT 1,
+
+  -- NULL hanya diperbolehkan untuk admin pertama.
+  -- Akun kasir wajib menyimpan ID admin yang membuatnya.
+  created_by BIGINT UNSIGNED NULL,
+
+  last_login_at DATETIME NULL,
+  password_changed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+
+  CONSTRAINT uq_users_username UNIQUE (username),
+
+  CONSTRAINT fk_users_created_by
+    FOREIGN KEY (created_by) REFERENCES users(id)
+    ON UPDATE CASCADE
+    ON DELETE RESTRICT,
+
+  INDEX idx_users_role (role),
+  INDEX idx_users_is_active (is_active),
+  INDEX idx_users_created_by (created_by)
+) ENGINE=InnoDB;
+
+
+-- Catatan setiap percobaan login.
+-- user_id boleh NULL karena username yang dimasukkan mungkin tidak terdaftar.
+CREATE TABLE IF NOT EXISTS login_logs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NULL,
+  username_input VARCHAR(50) NOT NULL,
+  status ENUM('success', 'failed') NOT NULL,
+  ip_address VARCHAR(45) NULL,
+  user_agent VARCHAR(255) NULL,
+  failure_reason VARCHAR(100) NULL,
+  logged_in_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_login_logs_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON UPDATE CASCADE
+    ON DELETE SET NULL,
+
+  INDEX idx_login_logs_user (user_id),
+  INDEX idx_login_logs_status (status),
+  INDEX idx_login_logs_date (logged_in_at)
+) ENGINE=InnoDB;
+
+
+-- Trigger ini memperkuat aturan pembuatan akun:
+-- 1. Jika tabel masih kosong, hanya admin awal yang boleh dibuat tanpa created_by.
+-- 2. Setelah admin awal tersedia, akun baru wajib dibuat oleh admin aktif.
+-- 3. Kasir tidak dapat menjadi pembuat akun.
+DROP TRIGGER IF EXISTS trg_users_validate_creator;
+
+DELIMITER $$
+
+CREATE TRIGGER trg_users_validate_creator
+BEFORE INSERT ON users
+FOR EACH ROW
+BEGIN
+  IF NEW.created_by IS NULL THEN
+    IF NEW.role <> 'admin' OR EXISTS (SELECT 1 FROM users LIMIT 1) THEN
+      SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Hanya admin pertama yang boleh dibuat tanpa created_by';
+    END IF;
+  ELSE
+    IF NOT EXISTS (
+      SELECT 1
+      FROM users
+      WHERE id = NEW.created_by
+        AND role = 'admin'
+        AND is_active = 1
+    ) THEN
+      SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Akun baru hanya boleh dibuat oleh admin aktif';
+    END IF;
+  END IF;
+END$$
+
+DELIMITER ;
+
+
+-- Mencegah identitas pembuat akun diubah setelah akun tersimpan.
+DROP TRIGGER IF EXISTS trg_users_protect_creator;
+
+DELIMITER $$
+
+CREATE TRIGGER trg_users_protect_creator
+BEFORE UPDATE ON users
+FOR EACH ROW
+BEGIN
+  IF NOT (NEW.created_by <=> OLD.created_by) THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'created_by tidak boleh diubah';
+  END IF;
+END$$
+
+DELIMITER ;
+
+
+4. MEMBUAT SATU ADMIN AWAL
+--------------------------
+Admin awal diperlukan karena belum ada admin lain yang dapat membuat akun.
+
+Akun awal dalam panduan ini:
+
+Username : admin
+Password : Admin@123
+Role     : admin
+
+Hash di bawah dibuat menggunakan bcrypt cost 12. Jalankan SQL berikut setelah
+script database pada bagian sebelumnya berhasil.
+
+USE pos_gym;
+
+INSERT INTO users (
+  username,
+  password_hash,
+  full_name,
+  role,
+  is_active,
+  must_change_password,
+  created_by
+)
+SELECT
+  'admin',
+  '$2y$12$JnOPW6t.MxWhCpyFRaU8i.z.qgt0ed1vhtYXi0dt3bSazZeBhfXmW',
+  'Administrator',
+  'admin',
+  1,
+  1,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM users WHERE username = 'admin'
+);
+
+PENTING:
+
+1. Password Admin@123 hanya password awal untuk pengembangan lokal.
+2. Admin wajib mengganti password setelah login pertama.
+3. Kolom must_change_password bernilai 1 agar backend mengetahui bahwa password
+   awal harus diganti.
+4. Jangan memakai password ini saat aplikasi sudah digunakan sungguhan.
+
+
+5. MEMERIKSA ADMIN AWAL
+-----------------------
+Jalankan query berikut di phpMyAdmin:
+
+USE pos_gym;
+
+SELECT
+  id,
+  username,
+  full_name,
+  role,
+  is_active,
+  must_change_password,
+  created_by,
+  created_at
+FROM users;
+
+Hasil yang diharapkan:
+
+username             : admin
+role                 : admin
+is_active            : 1
+must_change_password : 1
+created_by           : NULL
+
+Password tidak akan terlihat karena database hanya menyimpan hash bcrypt.
+
+
+6. CARA ADMIN MEMBUAT AKUN KASIR
+--------------------------------
+Akun kasir nantinya dibuat melalui halaman admin, bukan langsung melalui
+phpMyAdmin. Alurnya adalah:
+
+1. Admin login.
+2. Backend Go memverifikasi token/session admin.
+3. Admin mengisi nama, username, dan password awal kasir.
+4. Backend Go mengubah password menjadi hash bcrypt.
+5. Backend menyimpan akun kasir dengan created_by berisi ID admin.
+
+Contoh data:
+
+Admin yang sedang login memiliki ID: 1
+Username kasir                 : kasir01
+Password awal                  : Kasir@123
+
+Contoh SQL berikut hanya menunjukkan bentuk data yang disimpan. Nilai hash
+wajib dibuat oleh backend Go dan bukan ditulis sebagai password biasa.
+
+INSERT INTO users (
+  username,
+  password_hash,
+  full_name,
+  role,
+  is_active,
+  must_change_password,
+  created_by
+) VALUES (
+  'kasir01',
+  '$2y$12$GANTI_DENGAN_HASH_BCRYPT_DARI_BACKEND_GO',
+  'Kasir Satu',
+  'kasir',
+  1,
+  1,
+  1
+);
+
+Jangan menjalankan contoh tersebut sebelum nilai password_hash diganti dengan
+hash bcrypt yang valid.
+
+
+7. ATURAN WAJIB DI BACKEND GOLANG
+---------------------------------
+Database membantu menjaga data, tetapi hak akses utama wajib diperiksa oleh
+backend Go.
+
+Endpoint yang disarankan:
+
+POST /api/auth/login
+- Boleh diakses tanpa login.
+- Menerima username dan password.
+- Tidak membuat akun baru.
+
+POST /api/admin/users/cashiers
+- Wajib memakai token/session.
+- Hanya role admin yang boleh mengakses.
+- Membuat akun baru dengan role kasir.
+- created_by diisi dari ID admin pada token/session, bukan dari input Flutter.
+
+GET /api/admin/users/cashiers
+- Hanya admin.
+- Menampilkan daftar akun kasir.
+
+PATCH /api/admin/users/cashiers/{id}/status
+- Hanya admin.
+- Mengaktifkan atau menonaktifkan akun kasir.
+
+PATCH /api/auth/change-password
+- Digunakan admin atau kasir untuk mengganti password sendiri.
+
+JANGAN membuat endpoint berikut:
+
+POST /api/register
+
+Jika endpoint register publik tersedia, kasir atau orang lain dapat mencoba
+membuat akun sendiri. Halaman Flutter juga tidak perlu memiliki tombol daftar.
+
+
+8. CONTOH HASH PASSWORD DI GOLANG
+--------------------------------
+Paket yang digunakan:
+
+golang.org/x/crypto/bcrypt
+
+Membuat hash saat admin membuat akun kasir:
+
+passwordHash, err := bcrypt.GenerateFromPassword(
+    []byte(passwordAwal),
+    bcrypt.DefaultCost,
+)
+if err != nil {
+    return err
+}
+
+Simpan string(passwordHash) ke kolom password_hash.
+
+Memeriksa password saat login:
+
+err := bcrypt.CompareHashAndPassword(
+    []byte(user.PasswordHash),
+    []byte(passwordInput),
+)
+
+if err != nil {
+    // Username atau password salah.
+}
+
+Jangan membandingkan password menggunakan query seperti ini:
+
+SELECT * FROM users
+WHERE username = 'admin'
+  AND password_hash = 'Admin@123';
+
+Cara tersebut salah karena password_hash berisi hasil bcrypt, bukan password
+asli.
+
+
+9. QUERY LOGIN YANG DIGUNAKAN BACKEND
+-------------------------------------
+Backend mencari akun berdasarkan username saja:
+
+SELECT
+  id,
+  username,
+  password_hash,
+  full_name,
+  role,
+  is_active,
+  must_change_password
+FROM users
+WHERE username = ?
+LIMIT 1;
+
+Setelah data ditemukan:
+
+1. Periksa is_active harus bernilai 1.
+2. Bandingkan password dengan bcrypt di Go.
+3. Jika benar, buat token/session.
+4. Perbarui waktu login.
+5. Masukkan catatan ke login_logs.
+
+Query memperbarui waktu login:
+
+UPDATE users
+SET last_login_at = NOW()
+WHERE id = ?;
+
+Contoh log login berhasil:
+
+INSERT INTO login_logs (
+  user_id,
+  username_input,
+  status,
+  ip_address,
+  user_agent
+) VALUES (?, ?, 'success', ?, ?);
+
+Contoh log login gagal:
+
+INSERT INTO login_logs (
+  user_id,
+  username_input,
+  status,
+  ip_address,
+  user_agent,
+  failure_reason
+) VALUES (?, ?, 'failed', ?, ?, 'password salah');
+
+
+10. MENGUJI ATURAN DATABASE
+---------------------------
+
+A. Percobaan kasir tanpa pembuat harus gagal:
+
+INSERT INTO users (
+  username,
+  password_hash,
+  full_name,
+  role,
+  created_by
+) VALUES (
+  'kasir_tanpa_admin',
+  'hash-contoh',
+  'Kasir Tanpa Admin',
+  'kasir',
+  NULL
+);
+
+Hasil yang diharapkan:
+
+ERROR: Hanya admin pertama yang boleh dibuat tanpa created_by
+
+
+B. Percobaan akun yang dibuat oleh kasir harus gagal.
+
+Trigger akan memeriksa bahwa ID pada created_by merupakan admin aktif. Jika ID
+tersebut milik kasir, database akan menolak penyimpanan.
+
+
+C. Melihat siapa yang membuat akun kasir:
+
+SELECT
+  cashier.id,
+  cashier.username,
+  cashier.full_name,
+  cashier.is_active,
+  admin.username AS created_by_admin,
+  cashier.created_at
+FROM users AS cashier
+JOIN users AS admin ON admin.id = cashier.created_by
+WHERE cashier.role = 'kasir';
+
+
+11. KONFIGURASI KONEKSI GOLANG
+------------------------------
+Konfigurasi lokal Laragon:
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=pos_gym
+
+Contoh DSN untuk github.com/go-sql-driver/mysql:
+
+root:@tcp(127.0.0.1:3306)/pos_gym?charset=utf8mb4&parseTime=True&loc=Local
+
+Jangan menaruh password database secara langsung di source code. Gunakan file
+.env dan masukkan .env ke .gitignore.
+
+
+12. HASIL AKHIR TAHAP LOGIN
+---------------------------
+Database login selesai jika:
+
+1. Database pos_gym tersedia.
+2. Tabel users tersedia.
+3. Tabel login_logs tersedia.
+4. Akun admin awal tersedia.
+5. Admin dapat login dengan password awal.
+6. Akun kasir tidak dapat dibuat tanpa created_by.
+7. created_by harus menunjuk ke admin aktif.
+8. Flutter tidak memiliki fitur daftar akun.
+
+Alur sistem yang benar:
+
+Flutter -> REST API Golang -> MySQL/MariaDB Laragon
+
+Flutter tidak boleh terhubung langsung ke MySQL.

@@ -1,0 +1,126 @@
+CATATAN SESI 1 - POS GYM (18/06/2026)
+=====================================================
+
+Ringkasan masalah yang muncul hari ini dan cara mengatasinya.
+Hampir semua error berakar pada SATU hal: backend tidak jalan / pakai build lama.
+
+
+=====================================================
+ATURAN UTAMA (WAJIB DIINGAT)
+=====================================================
+
+1. Setiap kali kode di folder `backend` (file .go) DIUBAH,
+   server backend WAJIB di-restart. `go run` TIDAK auto-reload.
+   - Di terminal backend tekan Ctrl+C (server mati + port 8080 bebas).
+   - Lalu jalankan lagi: go run ./cmd/api
+
+2. Jangan menjalankan dua server di port 8080 sekaligus.
+   Kalau muncul error "bind: Only one usage of each socket address",
+   artinya port 8080 masih dipakai server lama -> matikan dulu.
+
+3. Pakai terminal PowerShell biasa atau terminal bawaan VSCode untuk
+   menjalankan Go. JANGAN pakai terminal bawaan Laragon (Cmder), karena
+   Laragon menyuntikkan GOROOT=C:\laragon\bin\go\go1.24.1 yang bentrok
+   dengan Go 1.26.4 di C:\Program Files\Go.
+
+
+=====================================================
+CARA MENJALANKAN BACKEND
+=====================================================
+
+Buka terminal PowerShell baru, lalu:
+
+    cd C:\pos_gym\backend
+    go run ./cmd/api
+
+Tunggu sampai muncul:
+    backend running on http://localhost:8080
+
+Biarkan jendela terminal itu TETAP TERBUKA selama memakai aplikasi.
+Setelah backend jalan, refresh aplikasi Flutter di browser.
+
+Syarat sebelum menjalankan:
+- MySQL (Laragon) harus aktif (port 3306).
+- Database `pos_gym` sudah dibuat dari database.txt.
+- File backend\.env sudah ada (DB_USER=root, DB_PASSWORD kosong, dst).
+
+
+=====================================================
+SETUP GO (SUDAH DIBERESKAN PERMANEN)
+=====================================================
+
+Ada DUA instalasi Go di komputer ini:
+- C:\Program Files\Go          -> Go 1.26.4 (yang dipakai, BENAR)
+- C:\laragon\bin\go\go1.24.1   -> Go 1.24.1 (dari Laragon, sumber bentrok)
+
+Sudah diset permanen di level User:
+- GOROOT = C:\Program Files\Go
+- C:\Program Files\Go\bin sudah ada di PATH
+
+Catatan: perubahan environment hanya berlaku di terminal yang DIBUKA
+SETELAH setting tersebut. Tutup & buka ulang terminal / restart VSCode.
+
+Kalau pernah muncul error:
+   compile: version "go1.24.1" does not match go tool version "go1.26.4"
+artinya GOROOT salah / bentrok. Solusi cepat di terminal itu:
+   $env:GOROOT = "C:\Program Files\Go"
+   go clean -cache
+   go run ./cmd/api
+
+
+=====================================================
+RIWAYAT ERROR HARI INI & PENYEBABNYA
+=====================================================
+
+1. "Tidak bisa terhubung ke backend. Pastikan server aktif."
+   -> Backend tidak jalan. Go tidak dikenali di PATH + GOROOT bentrok.
+   -> Fix: jalankan backend dengan GOROOT yang benar.
+
+2. "bind: Only one usage of each socket address ... port"
+   -> Port 8080 sudah dipakai server lain (server lama masih hidup).
+   -> Fix: matikan server lama dulu, jalankan satu server saja.
+   Cara membebaskan port 8080:
+     Get-NetTCPConnection -LocalPort 8080 -State Listen |
+       ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+   atau manual:
+     netstat -ano | findstr :8080   (lihat PID)
+     taskkill /PID <pid> /F
+
+3. "Gagal memuat kasir - Respons server tidak valid"
+   -> Server yang jalan adalah build LAMA (belum punya route cashiers).
+   -> Fix: restart backend supaya pakai kode terbaru.
+
+4. "Gagal menyimpan password - Respons server tidak valid"
+   -> Sama: server build lama, belum punya endpoint reset password kasir.
+      Endpoint PATCH /api/admin/users/cashiers/{id}/password mengembalikan
+      404 body kosong -> Flutter gagal decode JSON -> "Respons server tidak valid".
+   -> Fix: restart backend. Sudah diverifikasi balas 200 setelah restart.
+
+Pola umum error "Respons server tidak valid":
+   Backend balas 404 / body kosong / bukan JSON, lalu Flutter gagal
+   menjalankan jsonDecode. Hampir selalu karena backend tidak jalan
+   atau pakai build lama.
+
+
+=====================================================
+CATATAN ENDPOINT KASIR
+=====================================================
+
+Endpoint yang tersedia (backend\cmd\api\main.go):
+   GET    /health
+   POST   /api/auth/login
+   PATCH  /api/auth/me
+   GET    /api/admin/users/cashiers
+   POST   /api/admin/users/cashiers
+   PATCH  /api/admin/users/cashiers/{id}/password   (reset password kasir)
+   DELETE /api/admin/users/cashiers/{id}             (hapus kasir)
+
+Saat admin reset password kasir, sistem set must_change_password = 1,
+jadi kasir akan diminta GANTI PASSWORD LAGI saat login berikutnya
+(lihat backend\internal\handler\admin_account.go).
+Kalau tidak mau perilaku ini, ubah baris must_change_password = 1.
+
+Akun login default admin:
+   username: admin
+   password: Admin@123
+   role: admin

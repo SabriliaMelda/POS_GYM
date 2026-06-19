@@ -1,0 +1,304 @@
+PANDUAN MENJALANKAN BACKEND LOGIN ADMIN POS GYM DENGAN GOLANG
+==============================================================
+
+File ini menjelaskan cara menjalankan backend Golang yang sudah dibuat di
+folder backend.
+
+
+1. CEK APAKAH GOLANG SUDAH TERPASANG
+------------------------------------
+Backend ini membutuhkan Go/Golang.
+
+Buka PowerShell, lalu jalankan:
+
+go version
+
+Jika muncul versi seperti:
+
+go version go1.22.x windows/amd64
+
+berarti Go sudah terpasang.
+
+Jika muncul pesan seperti:
+
+go : The term 'go' is not recognized
+
+berarti Go belum terpasang atau PATH belum benar.
+
+
+2. INSTALL GOLANG DI WINDOWS
+----------------------------
+1. Buka browser.
+2. Masuk ke:
+
+   https://go.dev/dl/
+
+3. Download installer Windows, pilih file yang namanya mirip:
+
+   go1.xx.x.windows-amd64.msi
+
+4. Jalankan installer tersebut.
+5. Ikuti proses install sampai selesai.
+6. Tutup semua PowerShell atau terminal yang masih terbuka.
+7. Buka PowerShell baru.
+8. Cek ulang:
+
+   go version
+
+Jika versi Go sudah muncul, lanjut ke tahap berikutnya.
+
+
+3. PASTIKAN DATABASE SUDAH AKTIF
+--------------------------------
+Backend ini memakai database MySQL/MariaDB dari Laragon.
+
+1. Buka Laragon.
+2. Klik Start All.
+3. Pastikan MySQL aktif.
+4. Pastikan database pos_gym sudah dibuat dari database.txt.
+5. Pastikan akun admin awal sudah ada:
+
+   username : admin
+   password : Admin@123
+
+
+4. MASUK KE FOLDER BACKEND
+--------------------------
+Buka PowerShell di folder project:
+
+C:\pos_gym
+
+Lalu masuk ke folder backend:
+
+cd backend
+
+
+5. BUAT FILE .env
+-----------------
+Backend membaca konfigurasi dari file .env.
+
+Jalankan:
+
+Copy-Item .env.example .env
+
+Setelah itu file backend\.env akan dibuat.
+
+Isi default-nya sudah cocok untuk Laragon bawaan:
+
+APP_ENV=development
+APP_PORT=8080
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=pos_gym
+
+JWT_SECRET=change-this-local-secret-before-production
+JWT_TTL_HOURS=24
+CORS_ALLOWED_ORIGINS=*
+
+Jika password MySQL Laragon kosong, biarkan DB_PASSWORD kosong.
+
+
+6. DOWNLOAD DEPENDENCY GOLANG
+-----------------------------
+Masih di folder backend, jalankan:
+
+go mod tidy
+
+Perintah ini akan mendownload package yang dibutuhkan:
+
+1. github.com/go-sql-driver/mysql
+2. golang.org/x/crypto/bcrypt
+
+Jika internet bermasalah, perintah ini bisa gagal. Pastikan koneksi internet
+aktif.
+
+
+7. JALANKAN BACKEND
+-------------------
+Masih di folder backend, jalankan:
+
+go run ./cmd/api
+
+Jika berhasil, akan muncul pesan seperti:
+
+backend running on http://localhost:8080
+
+Jangan tutup PowerShell tersebut selama backend sedang dipakai.
+
+
+8. TES BACKEND HEALTH CHECK
+---------------------------
+Buka PowerShell baru, lalu jalankan:
+
+Invoke-RestMethod -Uri http://localhost:8080/health
+
+Jika berhasil, hasilnya:
+
+status
+------
+ok
+
+
+9. TES LOGIN ADMIN
+------------------
+Buka PowerShell baru, lalu jalankan:
+
+Invoke-RestMethod -Method Post `
+  -Uri http://localhost:8080/api/auth/login `
+  -ContentType 'application/json' `
+  -Body '{"username":"admin","password":"Admin@123","role":"admin"}'
+
+Jika berhasil, backend akan mengembalikan data seperti:
+
+message              : login berhasil
+token_type           : Bearer
+expires_in           : 86400
+token                : token-login
+must_change_password : True
+user                 : data-admin
+
+Token ini nanti dipakai Flutter untuk akses endpoint yang wajib login.
+
+
+10. KEMUNGKINAN ERROR DAN SOLUSINYA
+-----------------------------------
+A. Error: go tidak dikenali
+
+Artinya Go belum terpasang atau terminal belum dibuka ulang setelah install.
+
+Solusi:
+1. Install Go dari https://go.dev/dl/
+2. Tutup PowerShell.
+3. Buka PowerShell baru.
+4. Jalankan go version.
+
+
+B. Error: connection refused ke database
+
+Artinya MySQL/MariaDB belum aktif.
+
+Solusi:
+1. Buka Laragon.
+2. Klik Start All.
+3. Jalankan ulang backend.
+
+
+C. Error: unknown database pos_gym
+
+Artinya database pos_gym belum dibuat.
+
+Solusi:
+1. Buka phpMyAdmin.
+2. Jalankan script database dari database.txt.
+3. Jalankan ulang backend.
+
+
+D. Login gagal padahal username dan password benar
+
+Cek hal berikut:
+1. Pastikan username admin ada di tabel users.
+2. Pastikan kolom is_active bernilai 1.
+3. Pastikan password yang dicoba adalah Admin@123.
+4. Pastikan hash password di database berasal dari database.txt.
+
+
+E. Port 8080 sudah dipakai
+
+Solusi:
+1. Buka backend\.env.
+2. Ganti:
+
+   APP_PORT=8080
+
+   menjadi misalnya:
+
+   APP_PORT=8081
+
+3. Jalankan ulang backend:
+
+   go run ./cmd/api
+
+4. URL backend berubah menjadi:
+
+   http://localhost:8081
+
+
+11. ALUR YANG BENAR
+-------------------
+Alur aplikasi yang benar adalah:
+
+Flutter -> REST API Golang -> MySQL/MariaDB Laragon
+
+Flutter tidak boleh langsung terhubung ke MySQL.
+
+Untuk login:
+
+1. Flutter mengirim username dan password ke:
+
+   POST http://localhost:8080/api/auth/login
+
+2. Backend Golang mencari user di database.
+3. Backend Golang mencocokkan password dengan bcrypt.
+4. Jika benar, backend mengirim token.
+5. Flutter menyimpan token.
+6. Flutter masuk ke halaman admin atau kasir sesuai role.
+
+
+12. FILE BACKEND YANG SUDAH DIBUAT
+----------------------------------
+Struktur backend:
+
+backend
+  go.mod
+  .env.example
+  README.md
+  cmd
+    api
+      main.go
+  internal
+    auth
+      password.go
+      token.go
+    config
+      config.go
+    database
+      mysql.go
+    handler
+      auth.go
+    httpx
+      json.go
+      middleware.go
+
+
+13. ENDPOINT YANG SUDAH ADA
+---------------------------
+GET /health
+
+Untuk cek apakah backend hidup.
+
+POST /api/auth/login
+
+Untuk login admin atau kasir.
+
+Body JSON:
+
+{
+  "username": "admin",
+  "password": "Admin@123",
+  "role": "admin"
+}
+
+
+14. LANGKAH SETELAH BACKEND LOGIN BERHASIL
+------------------------------------------
+Setelah login admin berhasil dari PowerShell, langkah berikutnya:
+
+1. Sambungkan halaman Flutter login ke endpoint Golang.
+2. Simpan token dari response login.
+3. Arahkan user ke halaman admin jika role = admin.
+4. Arahkan user ke halaman kasir jika role = kasir.
+5. Buat endpoint admin untuk menambah akun kasir.
+

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'auth_service.dart';
+
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.authRepository});
+
+  final AuthRepository? authRepository;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -14,7 +18,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
+  bool _isLoading = false;
   String _selectedRole = 'Kasir';
+  late final AuthRepository _authRepository;
+
+  @override
+  void initState() {
+    super.initState();
+    _authRepository = widget.authRepository ?? ApiAuthRepository();
+  }
 
   @override
   void dispose() {
@@ -23,10 +35,43 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _login() {
+  Future<void> _login() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
-    Get.offAllNamed(_selectedRole == 'Admin' ? '/admin' : '/kasir');
+    setState(() => _isLoading = true);
+
+    try {
+      final session = await _authRepository.login(
+        username: _usernameController.text.trim(),
+        password: _passwordController.text,
+        role: _selectedRole.toLowerCase(),
+      );
+
+      if (!mounted) return;
+
+      final route = session.user.role == 'admin' ? '/admin' : '/kasir';
+      Get.offAllNamed(route);
+    } on AuthException catch (error) {
+      if (!mounted) return;
+      _showLoginError(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showLoginError(
+        'Tidak bisa terhubung ke backend. Pastikan server aktif.',
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showLoginError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFB91C1C),
+      ),
+    );
   }
 
   @override
@@ -48,6 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   passwordController: _passwordController,
                   selectedRole: _selectedRole,
                   obscurePassword: _obscurePassword,
+                  isLoading: _isLoading,
                   onRoleChanged: (role) {
                     setState(() => _selectedRole = role);
                   },
@@ -147,6 +193,7 @@ class _LoginFormPanel extends StatelessWidget {
     required this.passwordController,
     required this.selectedRole,
     required this.obscurePassword,
+    required this.isLoading,
     required this.onRoleChanged,
     required this.onTogglePassword,
     required this.onLogin,
@@ -157,6 +204,7 @@ class _LoginFormPanel extends StatelessWidget {
   final TextEditingController passwordController;
   final String selectedRole;
   final bool obscurePassword;
+  final bool isLoading;
   final ValueChanged<String> onRoleChanged;
   final VoidCallback onTogglePassword;
   final VoidCallback onLogin;
@@ -266,7 +314,7 @@ class _LoginFormPanel extends StatelessWidget {
                     height: 54,
                     child: FilledButton(
                       key: const Key('login-button'),
-                      onPressed: onLogin,
+                      onPressed: isLoading ? null : onLogin,
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF071A3D),
                         foregroundColor: Colors.white,
@@ -275,20 +323,29 @@ class _LoginFormPanel extends StatelessWidget {
                         ),
                         elevation: 0,
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Masuk ke Sistem',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                      child: isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Masuk ke Sistem',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Icon(Icons.arrow_forward_rounded, size: 19),
+                              ],
                             ),
-                          ),
-                          SizedBox(width: 10),
-                          Icon(Icons.arrow_forward_rounded, size: 19),
-                        ],
-                      ),
                     ),
                   ),
                   const SizedBox(height: 32),

@@ -1,0 +1,76 @@
+BAB IV
+IMPLEMENTASI DAN PENGUJIAN SOFTWARE
+4.1. Desain
+4.1.1. Database 
+4.1.2. Software Architecture
+4.1.3. User Interface
+4.2. Code Generation
+4.3. Testing 
+4.4. Support
+4.4.1. Publikasi Software
+4.4.2. Spesifikasi Hardware dan Software
+
+BAB IV
+IMPLEMENTASI DAN PENGUJIAN SOFTWARE
+4.1 Desain
+4.1.1 Basis Data
+Pembuatan desain basis data disesuaikan dengan aplikasi yang akan dibangun oleh
+penulis
+4.1.2 Arsitektur Software
+Pada sub bab ini menjelaskan pseudecode dari algorithma yang digunakan untuk
+menyelesaikan permasalahan dalam pembangunan aplikasi
+Contoh uraian dari Software Architecture
+Pseudo code algoritma Dijkstra
+Pseudo code algoritma Dijkstra dapat ditunjukkan sebagai berikut:
+function Dijkstra(Graph, source):
+for each vertex v in Graph:
+// Initializations
+dist[v] := infinity ;
+// Unknown distance function from
+source to v
+previous[v] := undefined ;
+// Previous node in optimal path from
+source
+end for ;
+dist[source] := 0 ;
+// Distance from source to source
+Q := the set of all nodes in
+Graph ;
+// All nodes in the graph are
+unoptimized - thus are in Q
+while Q is not empty:
+// The main loop
+u := vertex in Q with
+smallest dist[] ;
+if dist[u] = infinity:
+break ;
+// all remaining vertices are
+inaccessible from source
+fi ;
+remove u from Q ;
+for each neighbor v of u:
+// where v has not yet been removed
+from Q.
+alt := dist[u] +
+dist_between(u, v) ;
+if alt < dist[v]:
+// Relax (u,v,a)
+4.1.3. Antarmuka Pengguna
+Pada uraian ini dijelaskan model dari antar muka pengguna (user interface) dari aplikasi
+yang dikembangkan atau yang dibangun, Menampilkan desain antar muka form-form
+yang akan dibuat
+4.2. Code Generation
+a. Jika program yang dibuat adalah pemrograman berorientasi objek (oop), pada tahapan ini
+Handouts Skripsi Program Studi Teknologi Informasi Hal. 8
+Program Sarjana Fakultas Teknik dan Informatika
+Universitas Bina Sarana Informatika
+menampilkan hasil generate dari class-class yang di buat
+b. Jika program yang dibuat adalah pemprogram terstruktur, pada tahapan ini menampilkan
+listing program pada form yang terkait dengan proses bisnis utamanya.
+4.3 Testing
+Pengujian (testing) unit yang dilakukan pada unit program yang telah dibuat boleh menggunakan
+metode pengujian yang dikuasai oleh mahasiswa
+4.4 Pendukung
+Dalam bahasan ini berisikan dimana software tersebut akan di publish atau di jalankan, apakah
+via web, desktop, android atau yang lainnya, serta spesifikasi hardware dan software yang akan
+digunakan untuk pemasangan aplikasi yang telah diujikan.

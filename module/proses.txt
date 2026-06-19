@@ -1,0 +1,495 @@
+CATATAN PROSES KEMARIN: INSTAL GOLANG DAN PEMBUATAN BACKEND POS GYM
+====================================================================
+
+Tanggal proses: Rabu, 17 Juni 2026
+Project: C:\pos_gym
+
+File ini dibuat supaya proses kemarin lebih mudah dipahami ulang, terutama
+bagian instal Golang dan alasan kenapa project POS Gym mulai memakai backend
+Golang.
+
+
+1. TUJUAN PEKERJAAN KEMARIN
+---------------------------
+Kemarin fokusnya adalah menyiapkan backend untuk fitur login admin/kasir POS
+Gym.
+
+Sebelumnya aplikasi Flutter hanya berada di sisi tampilan. Untuk login yang
+benar, Flutter tidak boleh langsung membaca database MySQL. Alur yang lebih
+aman dan rapi adalah:
+
+Flutter -> Backend Golang -> MySQL/MariaDB Laragon
+
+Artinya:
+1. Flutter hanya mengirim username dan password ke backend.
+2. Backend Golang yang mengecek username dan password ke database.
+3. Jika login benar, backend mengirim token.
+4. Token itu nanti dipakai Flutter untuk membuktikan bahwa user sudah login.
+
+Jadi Golang dipakai sebagai REST API, yaitu jembatan antara aplikasi Flutter
+dan database.
+
+
+2. INSTAL GOLANG DI WINDOWS
+---------------------------
+Langkah instal Golang yang dilakukan adalah:
+
+1. Membuka website resmi Golang:
+
+   https://go.dev/dl/
+
+2. Mengunduh installer Windows dengan format file seperti:
+
+   go1.xx.x.windows-amd64.msi
+
+3. Menjalankan file installer MSI tersebut.
+
+4. Mengikuti proses instalasi sampai selesai.
+
+5. Lokasi instalasi Go di komputer ini terdeteksi di:
+
+   C:\Program Files\Go
+
+6. File utama Go berada di:
+
+   C:\Program Files\Go\bin\go.exe
+
+7. Saat dicek langsung dari path tersebut, Go sudah ada dan versinya:
+
+   go version go1.26.4 windows/amd64
+
+
+3. KENAPA SETELAH INSTALL HARUS CEK "go version"
+------------------------------------------------
+Setelah instalasi, perintah yang dipakai untuk mengecek apakah Golang sudah
+siap adalah:
+
+go version
+
+Jika berhasil, akan muncul versi Go, misalnya:
+
+go version go1.26.4 windows/amd64
+
+Tetapi pada pengecekan hari ini lewat terminal project, perintah:
+
+go version
+
+masih menghasilkan error:
+
+go : The term 'go' is not recognized
+
+Artinya file Go sebenarnya sudah terpasang, tetapi terminal yang sedang
+dipakai belum mengenali perintah `go` dari PATH.
+
+Kemungkinan penyebabnya:
+1. Terminal PowerShell dibuka sebelum Go selesai diinstal.
+2. PATH Windows belum terbaca oleh terminal yang sedang aktif.
+3. PATH ke C:\Program Files\Go\bin belum aktif di environment terminal.
+
+Solusinya:
+1. Tutup semua PowerShell atau terminal.
+2. Buka PowerShell baru.
+3. Jalankan lagi:
+
+   go version
+
+4. Jika masih belum terbaca, pastikan PATH Windows berisi:
+
+   C:\Program Files\Go\bin
+
+Untuk sementara, Go tetap bisa dijalankan langsung dengan path lengkap:
+
+& "C:\Program Files\Go\bin\go.exe" version
+
+
+4. FOLDER BACKEND YANG DIBUAT
+-----------------------------
+Kemarin dibuat folder backend di dalam project:
+
+C:\pos_gym\backend
+
+Folder ini berisi kode backend Golang untuk login admin/kasir.
+
+Struktur pentingnya:
+
+backend
+  .env
+  .env.example
+  go.mod
+  go.sum
+  README.md
+  cmd
+    api
+      main.go
+  internal
+    auth
+      password.go
+      token.go
+    config
+      config.go
+    database
+      mysql.go
+    handler
+      auth.go
+    httpx
+      json.go
+      middleware.go
+
+Penjelasan singkat:
+1. cmd/api/main.go
+   Titik awal program backend. File ini menjalankan server HTTP.
+
+2. internal/config/config.go
+   Membaca konfigurasi dari file .env, seperti port aplikasi, database, JWT,
+   dan CORS.
+
+3. internal/database/mysql.go
+   Membuat koneksi ke database MySQL/MariaDB Laragon.
+
+4. internal/handler/auth.go
+   Berisi proses login: membaca request, mencari user, mencocokkan password,
+   membuat token, dan mencatat log login.
+
+5. internal/auth/password.go
+   Mengecek password memakai bcrypt. File ini juga menyesuaikan hash bcrypt
+   dari PHP yang biasanya memakai prefix $2y$ agar bisa dibaca oleh Go.
+
+6. internal/auth/token.go
+   Membuat dan memvalidasi token login berbentuk JWT sederhana dengan
+   algoritma HS256.
+
+7. internal/httpx/json.go
+   Helper untuk membaca dan mengirim response JSON.
+
+8. internal/httpx/middleware.go
+   Middleware untuk CORS dan recovery jika terjadi panic/error server.
+
+
+5. FILE go.mod DAN DEPENDENCY
+-----------------------------
+Di backend dibuat file:
+
+backend\go.mod
+
+Isi pentingnya:
+
+module pos-gym/backend
+
+go 1.22
+
+Dependency yang dipakai:
+
+1. github.com/go-sql-driver/mysql
+   Dipakai agar Golang bisa terhubung ke database MySQL/MariaDB.
+
+2. golang.org/x/crypto/bcrypt
+   Dipakai untuk mencocokkan password yang tersimpan sebagai hash bcrypt.
+
+Perintah yang dipakai untuk merapikan dan mengunduh dependency:
+
+go mod tidy
+
+Setelah dependency berhasil diproses, muncul file:
+
+backend\go.sum
+
+go.sum menyimpan catatan versi dependency agar build backend lebih konsisten.
+
+
+6. FILE .env UNTUK KONFIGURASI
+------------------------------
+Kemarin dibuat file konfigurasi:
+
+backend\.env.example
+backend\.env
+
+Isi konfigurasi default:
+
+APP_ENV=development
+APP_PORT=8080
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=pos_gym
+
+JWT_SECRET=change-this-local-secret-before-production
+JWT_TTL_HOURS=24
+CORS_ALLOWED_ORIGINS=*
+
+Artinya:
+1. Backend berjalan di port 8080.
+2. Database yang dipakai bernama pos_gym.
+3. Host database adalah 127.0.0.1, yaitu komputer lokal.
+4. User database memakai root.
+5. Password database dikosongkan karena default Laragon biasanya root tanpa
+   password.
+6. Token login berlaku selama 24 jam.
+7. CORS masih dibuka untuk semua origin agar mudah dites saat development.
+
+
+7. KONEKSI KE DATABASE LARAGON
+------------------------------
+Backend disiapkan untuk memakai MySQL/MariaDB dari Laragon.
+
+Yang perlu aktif:
+1. Laragon berjalan.
+2. MySQL/MariaDB sudah Start.
+3. Database pos_gym sudah dibuat dari database.txt.
+4. Tabel users dan login_logs tersedia.
+5. Akun admin awal sudah ada.
+
+Akun admin awal yang dipakai untuk tes:
+
+username : admin
+password : Admin@123
+role     : admin
+
+Di kode backend, koneksi database dibuat dengan driver MySQL. Backend juga
+menjalankan ping ke database saat start. Jadi kalau database mati atau nama
+database salah, backend akan langsung gagal jalan dan memberi error.
+
+
+8. ENDPOINT YANG SUDAH DIBUAT
+-----------------------------
+Kemarin endpoint yang sudah ada adalah:
+
+1. GET /health
+
+   Untuk mengecek apakah backend hidup.
+
+   Jika berhasil, responsnya:
+
+   {
+     "status": "ok"
+   }
+
+2. POST /api/auth/login
+
+   Untuk login admin atau kasir.
+
+   Contoh body JSON:
+
+   {
+     "username": "admin",
+     "password": "Admin@123",
+     "role": "admin"
+   }
+
+   Jika login berhasil, backend mengirim:
+   1. message login berhasil
+   2. token_type Bearer
+   3. expires_in 86400 detik
+   4. token login
+   5. data user
+   6. status must_change_password
+
+
+9. ALUR LOGIN YANG DIBUAT
+-------------------------
+Alur login di backend adalah:
+
+1. Flutter atau tester mengirim request ke:
+
+   POST http://localhost:8080/api/auth/login
+
+2. Backend membaca JSON request.
+
+3. Backend memastikan username dan password tidak kosong.
+
+4. Jika role dikirim, backend memastikan role hanya boleh:
+
+   admin
+   kasir
+
+5. Backend mencari username di tabel users.
+
+6. Jika username tidak ditemukan, backend mengembalikan error login gagal.
+
+7. Jika akun tidak aktif, backend mengembalikan error akun tidak aktif.
+
+8. Jika role yang diminta tidak sama dengan role user di database, backend
+   menolak login.
+
+9. Backend membandingkan password input dengan password_hash di database
+   memakai bcrypt.
+
+10. Jika password benar, backend memperbarui last_login_at.
+
+11. Backend mencatat login ke tabel login_logs.
+
+12. Backend membuat token.
+
+13. Backend mengembalikan token dan data user ke Flutter.
+
+
+10. CARA MENJALANKAN BACKEND
+----------------------------
+Langkah normal untuk menjalankan backend:
+
+1. Buka PowerShell baru.
+
+2. Masuk ke folder project:
+
+   cd C:\pos_gym
+
+3. Masuk ke folder backend:
+
+   cd backend
+
+4. Pastikan dependency sudah siap:
+
+   go mod tidy
+
+5. Jalankan backend:
+
+   go run ./cmd/api
+
+6. Jika berhasil, akan muncul pesan:
+
+   backend running on http://localhost:8080
+
+Catatan:
+Jika perintah `go` belum terbaca, gunakan path lengkap dulu:
+
+& "C:\Program Files\Go\bin\go.exe" run ./cmd/api
+
+
+11. CARA TES BACKEND
+--------------------
+Untuk tes health check:
+
+Invoke-RestMethod -Uri http://localhost:8080/health
+
+Jika berhasil:
+
+status
+------
+ok
+
+Untuk tes login admin:
+
+Invoke-RestMethod -Method Post `
+  -Uri http://localhost:8080/api/auth/login `
+  -ContentType 'application/json' `
+  -Body '{"username":"admin","password":"Admin@123","role":"admin"}'
+
+Jika berhasil, respons berisi token login.
+
+
+12. FILE PANDUAN YANG JUGA DIBUAT
+---------------------------------
+Selain backend, kemarin juga dibuat file:
+
+C:\pos_gym\golang.txt
+
+File golang.txt berisi panduan praktis untuk menjalankan backend login admin
+POS Gym dengan Golang, mulai dari cek Go, instal Go, setup database, membuat
+.env, menjalankan backend, sampai tes login.
+
+Bedanya:
+1. golang.txt adalah panduan langkah menjalankan.
+2. proses.txt ini adalah penjelasan proses dan alasan kenapa langkah-langkah
+   itu dilakukan.
+
+
+13. MASALAH YANG MUNGKIN MUNCUL
+-------------------------------
+A. Error: go tidak dikenali
+
+Penyebab:
+Go belum masuk PATH terminal.
+
+Solusi:
+1. Tutup terminal.
+2. Buka PowerShell baru.
+3. Jalankan go version.
+4. Jika masih gagal, cek PATH Windows.
+5. Untuk sementara pakai:
+
+   & "C:\Program Files\Go\bin\go.exe" version
+
+
+B. Error: connection refused ke database
+
+Penyebab:
+MySQL/MariaDB Laragon belum berjalan.
+
+Solusi:
+1. Buka Laragon.
+2. Klik Start All.
+3. Jalankan ulang backend.
+
+
+C. Error: unknown database pos_gym
+
+Penyebab:
+Database pos_gym belum dibuat.
+
+Solusi:
+1. Buka phpMyAdmin atau database manager Laragon.
+2. Buat database pos_gym.
+3. Jalankan script dari database.txt.
+4. Jalankan ulang backend.
+
+
+D. Login gagal padahal merasa password benar
+
+Kemungkinan:
+1. Username admin belum ada di tabel users.
+2. Password hash di database tidak sesuai.
+3. Akun is_active bernilai 0.
+4. Role yang dikirim tidak sama dengan role user.
+
+Solusi:
+1. Pastikan user admin ada.
+2. Pastikan password yang dicoba adalah Admin@123.
+3. Pastikan role admin.
+4. Pastikan is_active bernilai 1.
+
+
+E. Port 8080 sudah dipakai
+
+Penyebab:
+Ada aplikasi lain yang sudah memakai port 8080.
+
+Solusi:
+1. Buka backend\.env.
+2. Ganti:
+
+   APP_PORT=8080
+
+   menjadi misalnya:
+
+   APP_PORT=8081
+
+3. Jalankan ulang backend.
+4. URL backend berubah menjadi:
+
+   http://localhost:8081
+
+
+14. KESIMPULAN
+--------------
+Yang dilakukan kemarin bukan hanya instal Golang, tetapi juga mulai membangun
+pondasi backend untuk POS Gym.
+
+Ringkasnya:
+1. Golang diinstal di Windows.
+2. Go terdeteksi ada di C:\Program Files\Go.
+3. Backend Golang dibuat di folder backend.
+4. Backend dikonfigurasi memakai file .env.
+5. Backend disambungkan ke database pos_gym di Laragon.
+6. Endpoint health check dibuat.
+7. Endpoint login admin/kasir dibuat.
+8. Password dicek memakai bcrypt.
+9. Login berhasil akan menghasilkan token.
+10. Flutter nantinya tinggal disambungkan ke endpoint login tersebut.
+
+Hal yang perlu diperhatikan setelah ini:
+1. Pastikan perintah `go version` bisa berjalan dari PowerShell biasa.
+2. Pastikan Laragon dan database pos_gym aktif.
+3. Jalankan backend dari folder backend.
+4. Tes /health dan /api/auth/login.
+5. Setelah backend login stabil, sambungkan halaman login Flutter ke backend.
