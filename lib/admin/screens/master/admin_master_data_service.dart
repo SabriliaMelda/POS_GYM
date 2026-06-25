@@ -9,16 +9,14 @@ import '../../../kasir/models/food_beverage_item.dart';
 import '../../../kasir/models/gym_package.dart';
 import '../../../kasir/models/gym_transaction.dart';
 import '../../../kasir/models/member.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AdminMasterDataRepository {
   AdminMasterDataRepository({http.Client? client, String? baseUrl})
     : _client = client ?? http.Client(),
       _baseUrl =
           baseUrl ??
-          const String.fromEnvironment(
-            'API_BASE_URL',
-            defaultValue: 'http://192.168.1.106:8080',
-          );
+          dotenv.get('API_BASE_URL', fallback: 'http://localhost:8080');
 
   final http.Client _client;
   final String _baseUrl;
@@ -248,7 +246,9 @@ class AdminMasterDataRepository {
 
   GymTransaction _gymTransactionFromApi(Map<String, dynamic> json) {
     final date =
-        DateTime.tryParse(json['transaction_date']?.toString() ?? '')?.toLocal() ??
+        DateTime.tryParse(
+          json['transaction_date']?.toString() ?? '',
+        )?.toLocal() ??
         DateTime.now();
     return GymTransaction(
       transactionId: json['transaction_code']?.toString() ?? '',

@@ -13,8 +13,11 @@ import 'kasir/screens/food_beverage_transaction/food_beverage_transaction_screen
 import 'kasir/screens/attendance/attendance_screen.dart';
 import 'kasir/screens/attendance/member_check_in_screen.dart';
 import 'kasir/screens/transaction_history/transaction_history_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+   await dotenv.load(fileName: ".env");
   runApp(const MyApp());
 }
 

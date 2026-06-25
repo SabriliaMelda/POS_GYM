@@ -44,7 +44,9 @@ const fnbItemColumns = `
 `
 
 func (h *AuthHandler) ListFNBItems(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireAdmin(w, r); !ok {
+	// Baca menu boleh oleh semua user terautentikasi (admin maupun kasir),
+	// konsisten dengan ListGymPackages. Mutasi tetap khusus admin.
+	if _, ok := h.requireAuthenticated(w, r); !ok {
 		return
 	}
 

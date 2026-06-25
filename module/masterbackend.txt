@@ -316,7 +316,7 @@ Image.asset agar data lama tetap kompatibel.
 
 Default project saat ini:
 
-http://192.168.1.106:8080
+http://localhost:8080
 
 Alamat dapat diganti tanpa mengubah source code memakai dart-define:
 

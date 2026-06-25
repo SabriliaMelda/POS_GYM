@@ -73,6 +73,7 @@ dependencies:
 
   # Generate attendance QR/barcodes
   barcode: ^2.2.9
+  flutter_dotenv: ^6.0.1
 
 dev_dependencies:
   flutter_test:
@@ -97,6 +98,7 @@ flutter:
     - assets/images/logogym.png
     - assets/images/fnb/
     - assets/images/gym/
+    - .env
 
   # To add assets to your application, add an assets section, like this:
   # assets:

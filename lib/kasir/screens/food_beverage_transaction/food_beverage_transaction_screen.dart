@@ -1,9 +1,17 @@
+import 'package:barcode/barcode.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/food_beverage_transaction_controller.dart';
 import '../../models/index.dart';
+import '../../utils/qris_generator.dart';
 import '../../utils/utils.dart';
+
+/// QRIS statis contoh (MODE DEMO) — dipakai bila `QRIS_STATIC` belum diisi di
+/// .env. Ganti dengan QRIS statis asli milik gym agar dapat dibayar sungguhan.
+const _demoStaticQris =
+    '0002010102115204000053033605802ID5909X-FIT GYM6007JAKARTA';
 
 class FoodBeverageTransactionScreen extends StatefulWidget {
   const FoodBeverageTransactionScreen({super.key});
@@ -215,6 +223,9 @@ class _FoodBeverageTransactionScreenState
                         itemCount: filteredItems.length,
                         itemBuilder: (context, index) => _ProductCard(
                           item: filteredItems[index],
+                          imageUrl: _controller.imageUrlFor(
+                            filteredItems[index],
+                          ),
                           quantity: _quantityFor(filteredItems[index]),
                           onAdd: () =>
                               _controller.addToCart(filteredItems[index]),
@@ -758,12 +769,210 @@ class _FoodBeverageTransactionScreenState
   }
 
   void _continuePayment() {
+    if (_controller.cartItems.isEmpty) {
+      Get.snackbar('Keranjang Kosong', 'Tambahkan menu sebelum pembayaran.');
+      return;
+    }
     if (_controller.isMemberCustomer.value &&
         _controller.selectedMember.value == null) {
       Get.snackbar('Pilih Member', 'Pilih nama member sebelum pembayaran.');
       return;
     }
-    Get.snackbar('Pratinjau UI', 'Pembayaran belum diaktifkan.');
+    _showQrisPayment(_controller.totalAmount.value);
+  }
+
+  /// Menampilkan QRIS dinamis bernominal [amount]. Saat pelanggan memindai,
+  /// nominal otomatis muncul di aplikasi pembayaran mereka.
+  void _showQrisPayment(double amount) {
+    final configured = dotenv.maybeGet('QRIS_STATIC')?.trim() ?? '';
+    final isDemo = configured.isEmpty;
+    final payload = QrisGenerator.buildDynamic(
+      isDemo ? _demoStaticQris : configured,
+      amount,
+    );
+    final isMember = _controller.isMemberCustomer.value;
+    final memberName = _controller.selectedMember.value?.name;
+
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF071A3D), Color(0xFF155E9F)],
+                    ),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.qr_code_2_rounded,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Pembayaran QRIS',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isMember ? 'Member: ${memberName ?? '-'}' : 'Non-member',
+                        style: const TextStyle(
+                          color: Color(0xFFE8F4FF),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: SizedBox(
+                          width: 210,
+                          height: 210,
+                          child: CustomPaint(painter: _QrisPainter(payload)),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Total Pembayaran',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        CurrencyUtils.formatCurrencySimple(amount),
+                        style: const TextStyle(
+                          color: Color(0xFF071A3D),
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Pelanggan scan QR ini — nominal otomatis muncul di '
+                        'aplikasi pembayaran mereka.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                      ),
+                      if (isDemo) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFCD34D)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                size: 18,
+                                color: Color(0xFF92400E),
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Mode demo. Isi QRIS_STATIC di .env dengan '
+                                  'QRIS asli gym agar bisa dibayar sungguhan.',
+                                  style: TextStyle(
+                                    color: Color(0xFF92400E),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Get.back(),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            foregroundColor: const Color(0xFF475569),
+                          ),
+                          child: const Text(
+                            'Batal',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            Get.back();
+                            _controller.clearCart();
+                            if (mounted) setState(() => _showCartPanel = false);
+                            Get.snackbar(
+                              'Pembayaran Selesai',
+                              'Transaksi F&B '
+                                  '${CurrencyUtils.formatCurrencySimple(amount)} '
+                                  'selesai.',
+                            );
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF16A34A),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                          ),
+                          icon: const Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 18,
+                          ),
+                          label: const Text(
+                            'Pembayaran Selesai',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildCartBar(BuildContext context) {
@@ -1086,12 +1295,14 @@ class _FoodBeverageTransactionScreenState
 class _ProductCard extends StatelessWidget {
   const _ProductCard({
     required this.item,
+    required this.imageUrl,
     required this.quantity,
     required this.onAdd,
     required this.onRemove,
   });
 
   final FoodBeverageItem item;
+  final String imageUrl;
   final int quantity;
   final VoidCallback onAdd;
   final VoidCallback onRemove;
@@ -1101,6 +1312,8 @@ class _ProductCard extends StatelessWidget {
     const primary = Color(0xFF1D4ED8);
     const dark = Color(0xFF111827);
     final memberPrice = _memberPrice(item.price);
+    final soldOut = item.stock <= 0;
+    final atMax = quantity >= item.stock;
 
     return Material(
       color: Colors.white,
@@ -1109,7 +1322,7 @@ class _ProductCard extends StatelessWidget {
       elevation: quantity > 0 ? 2 : 0,
       shadowColor: const Color(0x1A1D4ED8),
       child: InkWell(
-        onTap: onAdd,
+        onTap: (soldOut || atMax) ? null : onAdd,
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
@@ -1120,8 +1333,12 @@ class _ProductCard extends StatelessWidget {
               width: quantity > 0 ? 1.5 : 1,
             ),
           ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
+          child: Stack(
+            children: [
+              Opacity(
+                opacity: soldOut ? 0.5 : 1,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
               final imageWidth = (constraints.maxWidth * 0.40).clamp(
                 112.0,
                 164.0,
@@ -1135,11 +1352,7 @@ class _ProductCard extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Image.asset(
-                          _imageForItem(item),
-                          fit: BoxFit.cover,
-                          alignment: Alignment.center,
-                        ),
+                        _buildImage(),
                         Positioned(
                           left: 8,
                           top: 8,
@@ -1162,6 +1375,31 @@ class _ProductCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (!soldOut)
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: item.stock <= 5
+                                    ? const Color(0xF2D97706)
+                                    : const Color(0xD9111827),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Stok ${item.stock}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -1235,7 +1473,37 @@ class _ProductCard extends StatelessWidget {
                             color: const Color(0xFF475569),
                           ),
                           const SizedBox(height: 8),
-                          if (quantity == 0)
+                          if (soldOut)
+                            SizedBox(
+                              width: double.infinity,
+                              height: 34,
+                              child: FilledButton.icon(
+                                onPressed: null,
+                                style: FilledButton.styleFrom(
+                                  disabledBackgroundColor: const Color(
+                                    0xFFE2E8F0,
+                                  ),
+                                  disabledForegroundColor: const Color(
+                                    0xFF94A3B8,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.block_rounded, size: 17),
+                                label: const Text(
+                                  'Stok Habis',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else if (quantity == 0)
                             SizedBox(
                               width: double.infinity,
                               height: 34,
@@ -1285,7 +1553,7 @@ class _ProductCard extends StatelessWidget {
                                   ),
                                   _QuantityButton(
                                     icon: Icons.add_rounded,
-                                    onPressed: onAdd,
+                                    onPressed: atMax ? null : onAdd,
                                   ),
                                 ],
                               ),
@@ -1296,10 +1564,69 @@ class _ProductCard extends StatelessWidget {
                   ),
                 ],
               );
-            },
+                  },
+                ),
+              ),
+              if (soldOut)
+                Positioned.fill(
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'HABIS',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  /// Gambar menu dari backend (image_path). Jatuh ke aset lokal bila item
+  /// tidak punya foto atau gambar gagal dimuat.
+  Widget _buildImage() {
+    final url = imageUrl.trim();
+    final fallback = Image.asset(
+      _imageForItem(item),
+      fit: BoxFit.cover,
+      alignment: Alignment.center,
+    );
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return fallback;
+    }
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      alignment: Alignment.center,
+      loadingBuilder: (context, child, progress) => progress == null
+          ? child
+          : const ColoredBox(
+              color: Color(0xFFF1F5F9),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+      errorBuilder: (_, _, _) => fallback,
     );
   }
 
@@ -1499,4 +1826,38 @@ class _QuantityButton extends StatelessWidget {
       disabledColor: const Color(0xFFCBD5E1),
     );
   }
+}
+
+/// Menggambar string QRIS sebagai kode QR (memakai paket `barcode`).
+class _QrisPainter extends CustomPainter {
+  _QrisPainter(this.data);
+
+  final String data;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final elements = Barcode.qrCode().make(
+      data,
+      width: size.width,
+      height: size.height,
+    );
+    final paint = Paint()..color = Colors.black;
+    for (final element in elements) {
+      if (element is BarcodeBar && element.black) {
+        canvas.drawRect(
+          Rect.fromLTWH(
+            element.left,
+            element.top,
+            element.width,
+            element.height,
+          ),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _QrisPainter oldDelegate) =>
+      oldDelegate.data != data;
 }

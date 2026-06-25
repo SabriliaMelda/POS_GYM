@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../auth/auth_service.dart';
 
 class AdminAccountRepository {
@@ -11,10 +11,7 @@ class AdminAccountRepository {
     : _client = client ?? http.Client(),
       _baseUrl =
           baseUrl ??
-          const String.fromEnvironment(
-            'API_BASE_URL',
-            defaultValue: 'http://192.168.1.106:8080',
-          );
+          dotenv.get('API_BASE_URL', fallback: 'http://localhost:8080');
 
   final http.Client _client;
   final String _baseUrl;

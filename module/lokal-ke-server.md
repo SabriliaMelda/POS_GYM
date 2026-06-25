@@ -106,8 +106,8 @@ Kalau tidak diisi, dipakai nilai **default hardcoded** di kode:
 
 | File                                                         | Baris | Default              |
 |-------------------------------------------------------------|-------|----------------------|
-| `lib/auth/auth_service.dart`                                | 22    | `http://192.168.1.106:8080` |
-| `lib/admin/screens/account/admin_account_service.dart`      | 16    | `http://192.168.1.106:8080` |
+| `lib/auth/auth_service.dart`                                | 22    | `http://localhost:8080` |
+| `lib/admin/screens/account/admin_account_service.dart`      | 16    | `http://localhost:8080` |
 
 Selain itu ada `ATTENDANCE_BASE_URL` di `lib/kasir/screens/attendance/attendance_screen.dart:406`
 (untuk QR check-in member). Kalau kosong, otomatis pakai URL halaman web yang sedang dibuka (`Uri.base`).

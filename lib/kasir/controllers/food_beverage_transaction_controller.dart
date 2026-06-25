@@ -1,76 +1,76 @@
 import 'package:get/get.dart';
+
+import '../../admin/screens/master/admin_master_data_service.dart';
 import '../models/index.dart';
-import '../services/mock_data_service.dart';
 
+/// Controller transaksi F&B untuk kasir.
+/// Sumber data menu & member = backend (lewat [AdminMasterDataRepository]),
+/// mengikuti pola [GymTransactionController].
 class FoodBeverageTransactionController extends GetxController {
-  final MockDataService _mockData = MockDataService.instance;
+  FoodBeverageTransactionController({AdminMasterDataRepository? repository})
+    : _repository = repository ?? AdminMasterDataRepository();
 
-  var transactions = <FoodBeverageTransaction>[].obs;
-  var items = <FoodBeverageItem>[].obs;
-  var cartItems = <CartItem>[].obs;
-  var members = <Member>[].obs;
-  var selectedMember = Rx<Member?>(null);
-  var isMemberCustomer = false.obs;
-  var isLoading = false.obs;
-  var totalAmount = 0.0.obs;
-  var discountAmount = 0.0.obs;
-  var taxAmount = 0.0.obs;
-  var finalAmount = 0.0.obs;
+  final AdminMasterDataRepository _repository;
+
+  final items = <FoodBeverageItem>[].obs;
+  final cartItems = <CartItem>[].obs;
+  final members = <Member>[].obs;
+  final selectedMember = Rx<Member?>(null);
+  final isMemberCustomer = false.obs;
+  final isLoading = false.obs;
+  final totalAmount = 0.0.obs;
+  final discountAmount = 0.0.obs;
+  final taxAmount = 0.0.obs;
+  final finalAmount = 0.0.obs;
 
   @override
   void onInit() {
     super.onInit();
     loadItems();
-    loadTransactions();
     loadMembers();
   }
 
-  void loadMembers() {
-    members.value = _mockData.getActiveMembers();
-  }
-
+  /// Memuat daftar menu F&B aktif dari backend.
   Future<void> loadItems() async {
     try {
       isLoading.value = true;
-      final loadedItems = _mockData.getActiveFoodBeverageItems();
-      items.value = loadedItems;
+      final loaded = await _repository.listFnbItems();
+      items.value = loaded.where((item) => item.isActive).toList();
     } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal memuat item: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat menu: ${_msg(e)}');
     } finally {
       isLoading.value = false;
     }
   }
 
-  Future<void> loadTransactions() async {
+  /// Memuat daftar member untuk opsi harga member.
+  Future<void> loadMembers() async {
     try {
-      isLoading.value = true;
-      final loadedTransactions = List<FoodBeverageTransaction>.from(
-        _mockData.foodBeverageTransactions,
-      );
-      transactions.value = loadedTransactions;
+      members.value = await _repository.listMembers();
     } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal memuat transaksi: $e');
-    } finally {
-      isLoading.value = false;
+      Get.snackbar('Kesalahan', 'Gagal memuat data member: ${_msg(e)}');
     }
   }
 
   void addToCart(FoodBeverageItem item) {
     final price = priceFor(item);
-    final existingItem = cartItems.firstWhere(
+    final index = cartItems.indexWhere(
       (cartItem) => cartItem.itemId == item.id,
-      orElse: () => CartItem(
-        itemId: item.id ?? 0,
-        itemName: item.name,
-        price: price,
-        quantity: 0,
-        subtotal: 0,
-      ),
     );
+    final currentQty = index == -1 ? 0 : cartItems[index].quantity;
 
-    if (cartItems.contains(existingItem)) {
-      existingItem.quantity++;
-    } else {
+    // Cegah penjualan melebihi stok yang tersedia.
+    if (currentQty >= item.stock) {
+      Get.snackbar(
+        'Stok Tidak Cukup',
+        item.stock <= 0
+            ? '${item.name} sedang habis.'
+            : 'Stok ${item.name} hanya tersisa ${item.stock}.',
+      );
+      return;
+    }
+
+    if (index == -1) {
       cartItems.add(
         CartItem(
           itemId: item.id ?? 0,
@@ -80,6 +80,8 @@ class FoodBeverageTransactionController extends GetxController {
           subtotal: price,
         ),
       );
+    } else {
+      cartItems[index].quantity++;
     }
     cartItems.refresh();
     calculateTotal();
@@ -121,20 +123,6 @@ class FoodBeverageTransactionController extends GetxController {
     calculateTotal();
   }
 
-  Future<void> createTransaction(FoodBeverageTransaction transaction) async {
-    try {
-      isLoading.value = true;
-      _mockData.addFoodBeverageTransaction(transaction);
-      clearCart();
-      await loadTransactions();
-      Get.snackbar('Berhasil', 'Transaksi berhasil dibuat');
-    } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal membuat transaksi: $e');
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
   void clearCart() {
     cartItems.clear();
     selectedMember.value = null;
@@ -172,35 +160,9 @@ class FoodBeverageTransactionController extends GetxController {
     return (item.price * 0.9 / 1000).round() * 1000;
   }
 
-  Future<List<Member>> searchMembers(String query) async {
-    try {
-      return _mockData.searchMembers(query);
-    } catch (e) {
-      return [];
-    }
-  }
+  /// URL penuh gambar menu dari backend (kosong bila item tanpa foto).
+  String imageUrlFor(FoodBeverageItem item) =>
+      _repository.resolveImageUrl(item.imagePath);
 
-  Future<double> getTotalRevenue() async {
-    try {
-      return _mockData.totalFoodBeverageRevenue;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  Future<List<FoodBeverageItem>> getItemsByCategory(String category) async {
-    try {
-      return _mockData.getFoodBeverageItemsByCategory(category);
-    } catch (e) {
-      return [];
-    }
-  }
-
-  Future<List<String>> getCategories() async {
-    try {
-      return _mockData.getFoodBeverageCategories();
-    } catch (e) {
-      return [];
-    }
-  }
+  String _msg(Object e) => e.toString().replaceFirst('Exception: ', '');
 }
