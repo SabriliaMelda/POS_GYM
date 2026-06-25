@@ -2,3 +2,7 @@
 main
 api.exe
 *.exe
+uploads/*
+!uploads/fnb/
+uploads/fnb/*
+!uploads/fnb/.gitkeep

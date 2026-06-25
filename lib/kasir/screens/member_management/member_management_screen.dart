@@ -4,6 +4,7 @@ import '../../controllers/member_management_controller.dart';
 import '../../models/index.dart';
 import '../../utils/utils.dart';
 import '../../widgets/index.dart';
+import 'member_detail_screen.dart';
 
 class MemberManagementScreen extends StatelessWidget {
   const MemberManagementScreen({super.key});
@@ -16,6 +17,7 @@ class MemberManagementScreen extends StatelessWidget {
   static const Color _accent = Color(0xFF1D4ED8);
   static const Color _softAccent = Color(0xFFE8F4FF);
   static const Color _success = Color(0xFF15803D);
+  static const Color _warning = Color(0xFFD97706);
   static const Color _danger = Color(0xFFB91C1C);
 
   @override
@@ -35,7 +37,7 @@ class MemberManagementScreen extends StatelessWidget {
                     slivers: [
                       SliverToBoxAdapter(child: _buildHeader(controller)),
                       SliverToBoxAdapter(child: _buildSearchBar(controller)),
-                      SliverToBoxAdapter(child: _buildSummary(controller)),
+                      SliverToBoxAdapter(child: _buildFilterChips(controller)),
                       if (controller.filteredMembers.isEmpty)
                         const SliverFillRemaining(
                           hasScrollBody: false,
@@ -169,104 +171,77 @@ class MemberManagementScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSummary(MemberManagementController controller) {
-    final total = controller.members.length;
-    final active = controller.members
-        .where((member) => member.isActive && !member.isExpired)
-        .length;
-    final expired = controller.members
-        .where((member) => member.isExpired)
-        .length;
-
+  Widget _buildFilterChips(MemberManagementController controller) {
+    const items = [
+      (MemberFilter.all, 'Semua', Icons.groups_rounded),
+      (MemberFilter.active, 'Aktif', Icons.verified_user_rounded),
+      (MemberFilter.renewalDue, 'Perlu Perpanjangan', Icons.autorenew_rounded),
+      (MemberFilter.expired, 'Kadaluwarsa', Icons.event_busy_rounded),
+    ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatTile(
-              'Total',
-              total.toString(),
-              Icons.people_alt_rounded,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _buildStatTile(
-              'Aktif',
-              active.toString(),
-              Icons.verified_user_rounded,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _buildStatTile(
-              'Kedaluwarsa',
-              expired.toString(),
-              Icons.event_busy_rounded,
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final (filter, label, icon) in items) ...[
+              _buildFilterChip(
+                controller: controller,
+                filter: filter,
+                label: label,
+                icon: icon,
+                count: controller.countFor(filter),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatTile(String label, String value, IconData icon) {
-    return Container(
-      height: 82,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
+  Widget _buildFilterChip({
+    required MemberManagementController controller,
+    required MemberFilter filter,
+    required String label,
+    required IconData icon,
+    required int count,
+  }) {
+    final selected = controller.memberFilter.value == filter;
+    final color = switch (filter) {
+      MemberFilter.expired => _danger,
+      MemberFilter.renewalDue => _warning,
+      MemberFilter.active => _success,
+      MemberFilter.all => _accent,
+    };
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () => controller.setFilter(filter),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.12) : _surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? color : _border,
+            width: selected ? 1.4 : 1,
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: _softAccent,
-              borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: selected ? color : _muted),
+            const SizedBox(width: 6),
+            Text(
+              '$label ($count)',
+              style: TextStyle(
+                color: selected ? color : _muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-            child: Icon(icon, color: _accent, size: 18),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _text,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -275,23 +250,27 @@ class MemberManagementScreen extends StatelessWidget {
     Member member,
     MemberManagementController controller,
   ) {
-    final isExpired = member.isExpired;
-    final isActive = member.isActive && !isExpired;
-    final statusText = isActive
-        ? 'Aktif'
-        : isExpired
-        ? 'Kedaluwarsa'
-        : 'Tidak Aktif';
-    final statusColor = isActive ? _success : _danger;
+    final isExpired = MemberManagementController.isExpired(member);
+    final isRenewalDue = MemberManagementController.isRenewalDue(member);
+    final statusText = isExpired
+        ? 'Kadaluwarsa'
+        : isRenewalDue
+        ? 'Perlu Perpanjangan'
+        : 'Aktif';
+    final statusColor = isExpired
+        ? _danger
+        : isRenewalDue
+        ? _warning
+        : _success;
     final daysText = isExpired
         ? 'Berakhir ${member.daysUntilExpiry.abs()} hari lalu'
         : 'Sisa ${member.daysUntilExpiry} hari';
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        Get.snackbar('Pratinjau UI', 'Detail member belum diaktifkan.');
-      },
+      onTap: () => Get.to(
+        () => MemberDetailScreen(member: member, controller: controller),
+      ),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -344,15 +323,13 @@ class MemberManagementScreen extends StatelessWidget {
                           _buildInfoChip(Icons.badge_rounded, member.memberId),
                           _buildInfoChip(
                             Icons.card_membership_rounded,
-                            member.gymPackageId,
+                            controller.packageName(member.gymPackageId),
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 4),
-                _buildActionMenu(member, controller),
               ],
             ),
             const SizedBox(height: 14),
@@ -403,8 +380,44 @@ class MemberManagementScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            if (MemberManagementController.canRenew(member))
+              Align(
+                alignment: Alignment.centerRight,
+                child: _buildRenewButton(member, controller),
+              )
+            else
+              _buildReregisterNote(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildReregisterNote() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _danger.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _danger.withValues(alpha: 0.2)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline_rounded, color: _danger, size: 16),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Membership habis — harus daftar/bayar ulang, tidak bisa diperpanjang.',
+              style: TextStyle(
+                color: _danger,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -503,78 +516,20 @@ class MemberManagementScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionMenu(
+  Widget _buildRenewButton(
     Member member,
     MemberManagementController controller,
   ) {
-    return PopupMenuButton<String>(
-      tooltip: 'Aksi member',
-      icon: const Icon(Icons.more_horiz_rounded, color: _muted),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      onSelected: (value) {
-        if (value == 'edit') {
-          Get.snackbar('Pratinjau UI', 'Form edit member belum diaktifkan.');
-        } else if (value == 'renew') {
-          Get.snackbar(
-            'Pratinjau UI',
-            'Perpanjangan keanggotaan belum diaktifkan.',
-          );
-        } else if (value == 'delete') {
-          _confirmDelete(member, controller);
-        }
-      },
-      itemBuilder: (context) => const [
-        PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit_rounded, size: 18),
-              SizedBox(width: 10),
-              Text('Edit'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'renew',
-          child: Row(
-            children: [
-              Icon(Icons.autorenew_rounded, size: 18),
-              SizedBox(width: 10),
-              Text('Perpanjang'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline_rounded, size: 18),
-              SizedBox(width: 10),
-              Text('Hapus'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _confirmDelete(Member member, MemberManagementController controller) {
-    Get.dialog(
-      AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Hapus Member'),
-        content: Text('Yakin ingin menghapus ${member.name}?'),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Batal')),
-          FilledButton(
-            onPressed: () {
-              controller.deleteMember(member.id ?? 0);
-              Get.back();
-            },
-            style: FilledButton.styleFrom(backgroundColor: _danger),
-            child: const Text('Hapus'),
-          ),
-        ],
+    return FilledButton.tonalIcon(
+      onPressed: () => openRenewalFlow(member),
+      icon: const Icon(Icons.autorenew_rounded, size: 18),
+      label: const Text('Perpanjang'),
+      style: FilledButton.styleFrom(
+        backgroundColor: _softAccent,
+        foregroundColor: _accent,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
       ),
     );
   }

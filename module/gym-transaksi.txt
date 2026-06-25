@@ -1,0 +1,37 @@
+-- =====================================================================
+-- Transaksi Gym (POS Kasir)
+-- MySQL 8+
+-- Jalankan setelah members & gym_packages ada.
+--
+-- Mencatat setiap pembayaran layanan gym dari kasir:
+--   - customer_type = 'member' : perpanjangan member (terhubung member_renewals)
+--   - customer_type = 'new'    : pembayaran member baru (data diri via QR menyusul)
+--   - customer_type = 'guest'  : daily pass / kunjungan harian
+-- =====================================================================
+
+USE `pos_gym`;
+
+CREATE TABLE IF NOT EXISTS `gym_transactions` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `transaction_code` VARCHAR(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `member_code` VARCHAR(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `package_code` VARCHAR(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `customer_type` VARCHAR(10) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `customer_name` VARCHAR(150) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `amount` DECIMAL(12,2) UNSIGNED NOT NULL,
+  `admin_fee` DECIMAL(12,2) UNSIGNED NOT NULL DEFAULT 0,
+  `payment_method` VARCHAR(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` VARCHAR(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'completed',
+  `notes` VARCHAR(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `transaction_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_gym_transactions_code` (`transaction_code`),
+  KEY `idx_gym_transactions_member` (`member_code`),
+  KEY `idx_gym_transactions_date` (`transaction_date`),
+  CONSTRAINT `fk_gym_transactions_package` FOREIGN KEY (`package_code`)
+    REFERENCES `gym_packages` (`package_code`) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Verifikasi:
+-- SELECT * FROM gym_transactions ORDER BY transaction_date DESC LIMIT 20;

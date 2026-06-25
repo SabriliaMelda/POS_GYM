@@ -1,0 +1,26 @@
+-- =====================================================================
+-- Kolom paket pendaftaran awal (members.initial_package_code)
+-- MySQL 8+
+--
+-- members.package_code = paket SAAT INI (berubah tiap perpanjangan).
+-- members.initial_package_code = paket saat PERTAMA KALI DAFTAR (tetap).
+-- Dipakai di detail member untuk menampilkan "Paket pendaftaran awal".
+--
+-- Perpanjangan (RenewMember / CreateGymTransaction) HANYA mengubah
+-- package_code, tidak menyentuh initial_package_code.
+-- =====================================================================
+
+USE `pos_gym`;
+
+ALTER TABLE `members`
+  ADD COLUMN `initial_package_code` VARCHAR(20) COLLATE utf8mb4_unicode_ci NULL
+  AFTER `package_code`;
+
+-- Backfill data lama: anggap paket awal = paket saat ini.
+UPDATE `members`
+  SET `initial_package_code` = `package_code`
+  WHERE `initial_package_code` IS NULL;
+
+-- Catatan: registrasi member baru (mis. via QR) sebaiknya mengisi
+-- initial_package_code = package_code. Bila NULL, backend memakai
+-- COALESCE(initial_package_code, package_code) sebagai cadangan.

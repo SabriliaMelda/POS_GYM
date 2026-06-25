@@ -79,7 +79,7 @@ class MockDataService {
   late final List<Member> members = [
     Member(
       id: 1,
-      memberId: 'MBR-001',
+      memberId: 'MBR-58310427',
       name: 'Andi Pratama',
       email: 'andi@example.com',
       phoneNumber: '081234567890',
@@ -95,7 +95,7 @@ class MockDataService {
     ),
     Member(
       id: 2,
-      memberId: 'MBR-002',
+      memberId: 'MBR-29174685',
       name: 'Sinta Lestari',
       email: 'sinta@example.com',
       phoneNumber: '082112223333',
@@ -111,7 +111,7 @@ class MockDataService {
     ),
     Member(
       id: 3,
-      memberId: 'MBR-003',
+      memberId: 'MBR-86420931',
       name: 'Budi Santoso',
       email: 'budi@example.com',
       phoneNumber: '085677778888',
@@ -127,7 +127,7 @@ class MockDataService {
     ),
     Member(
       id: 4,
-      memberId: 'MBR-004',
+      memberId: 'MBR-43751862',
       name: 'Rina Maharani',
       email: 'rina@example.com',
       phoneNumber: '087700001111',
@@ -143,7 +143,7 @@ class MockDataService {
     ),
     Member(
       id: 5,
-      memberId: 'MBR-005',
+      memberId: 'MBR-70539418',
       name: 'Dimas Putra',
       email: 'dimas@example.com',
       phoneNumber: '087700002222',
@@ -159,7 +159,7 @@ class MockDataService {
     ),
     Member(
       id: 6,
-      memberId: 'MBR-006',
+      memberId: 'MBR-12684379',
       name: 'Maya Kartika',
       email: 'maya@example.com',
       phoneNumber: '087700003333',
@@ -175,7 +175,7 @@ class MockDataService {
     ),
     Member(
       id: 7,
-      memberId: 'MBR-007',
+      memberId: 'MBR-94826153',
       name: 'Fajar Nugroho',
       email: 'fajar@example.com',
       phoneNumber: '087700004444',
@@ -191,7 +191,7 @@ class MockDataService {
     ),
     Member(
       id: 8,
-      memberId: 'MBR-008',
+      memberId: 'MBR-37290546',
       name: 'Laras Wulandari',
       email: 'laras@example.com',
       phoneNumber: '087700005555',
@@ -207,7 +207,7 @@ class MockDataService {
     ),
     Member(
       id: 9,
-      memberId: 'MBR-009',
+      memberId: 'MBR-61943720',
       name: 'Yoga Saputra',
       email: 'yoga@example.com',
       phoneNumber: '087700006666',
@@ -223,7 +223,7 @@ class MockDataService {
     ),
     Member(
       id: 10,
-      memberId: 'MBR-010',
+      memberId: 'MBR-85317264',
       name: 'Nadia Prameswari',
       email: 'nadia@example.com',
       phoneNumber: '087700007777',

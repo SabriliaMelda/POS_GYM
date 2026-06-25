@@ -22,6 +22,12 @@ type Config struct {
 	JWTSecret          string
 	JWTTTL             time.Duration
 	CORSAllowedOrigins []string
+	SMTPHost           string
+	SMTPPort           string
+	SMTPUser           string
+	SMTPPassword       string
+	SMTPFrom           string
+	SMTPFromName       string
 }
 
 func Load() (Config, error) {
@@ -37,6 +43,18 @@ func Load() (Config, error) {
 		DBPassword: env("DB_PASSWORD", ""),
 		DBName:     env("DB_NAME", "pos_gym"),
 		JWTSecret:  env("JWT_SECRET", ""),
+
+		SMTPHost:     env("SMTP_HOST", "smtp.gmail.com"),
+		SMTPPort:     env("SMTP_PORT", "587"),
+		SMTPUser:     env("SMTP_USER", ""),
+		SMTPPassword: env("SMTP_PASSWORD", ""),
+		SMTPFrom:     env("SMTP_FROM", ""),
+		SMTPFromName: env("SMTP_FROM_NAME", "X-FIT Digital Indonesia"),
+	}
+
+	// SMTP_FROM default mengikuti akun pengirim jika tidak diisi terpisah.
+	if cfg.SMTPFrom == "" {
+		cfg.SMTPFrom = cfg.SMTPUser
 	}
 
 	ttlHours, err := strconv.Atoi(env("JWT_TTL_HOURS", "24"))

@@ -1,0 +1,125 @@
+-- Database dan seed data member POS Gym
+-- MySQL 8+
+-- Jalankan module/gymsql.txt terlebih dahulu agar tabel gym_packages tersedia.
+
+USE `pos_gym`;
+
+CREATE TABLE IF NOT EXISTS `members` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `member_code` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `full_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone_number` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `address` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `gender` enum('Male','Female') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `date_of_birth` date NOT NULL,
+  `package_code` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `registration_date` date NOT NULL,
+  `membership_expiry_date` date NOT NULL,
+  `photo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_members_code` (`member_code`),
+  UNIQUE KEY `uq_members_email` (`email`),
+  KEY `idx_members_name` (`full_name`),
+  KEY `idx_members_phone` (`phone_number`),
+  KEY `idx_members_package` (`package_code`),
+  KEY `idx_members_expiry` (`membership_expiry_date`),
+  CONSTRAINT `fk_members_package` FOREIGN KEY (`package_code`)
+    REFERENCES `gym_packages` (`package_code`)
+    ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Sabrilia adalah satu-satunya member yang perlu perpanjangan.
+-- Masa aktif dibuat berakhir 5 hari setelah tanggal seed dijalankan.
+INSERT INTO `members`
+  (`member_code`, `full_name`, `email`, `phone_number`, `address`, `gender`,
+   `date_of_birth`, `package_code`, `registration_date`, `membership_expiry_date`)
+VALUES
+  ('MBR-58310427', 'Sabrilia Melda', 'sabriliamelda@gmail.com',
+   '081515004351', 'Jakarta', 'Female', '2004-09-09', 'PKG-001',
+   DATE_SUB(CURDATE(), INTERVAL 25 DAY), DATE_ADD(CURDATE(), INTERVAL 5 DAY))
+ON DUPLICATE KEY UPDATE
+  `full_name` = VALUES(`full_name`),
+  `email` = VALUES(`email`),
+  `phone_number` = VALUES(`phone_number`),
+  `address` = VALUES(`address`),
+  `gender` = VALUES(`gender`),
+  `date_of_birth` = VALUES(`date_of_birth`),
+  `package_code` = VALUES(`package_code`),
+  `registration_date` = VALUES(`registration_date`),
+  `membership_expiry_date` = VALUES(`membership_expiry_date`);
+
+-- Membuat 99 member tambahan. Tanggal berakhir hanya aktif (> 7 hari)
+-- atau kadaluwarsa (< hari ini), sehingga tidak ada member lain yang perlu
+-- perpanjangan.
+INSERT INTO `members`
+  (`member_code`, `full_name`, `email`, `phone_number`, `address`, `gender`,
+   `date_of_birth`, `package_code`, `registration_date`, `membership_expiry_date`)
+WITH RECURSIVE `sequence` (`number`) AS (
+  SELECT 2
+  UNION ALL
+  SELECT `number` + 1 FROM `sequence` WHERE `number` < 100
+)
+SELECT
+  CONCAT(
+    'MBR-',
+    LPAD(10000000 + MOD(CRC32(CONCAT('POSGYM-MEMBER-', `number`)), 90000000), 8, '0')
+  ),
+  CONCAT(
+    ELT(MOD(`number` - 2, 20) + 1,
+      'Aditya', 'Aisyah', 'Akbar', 'Anindya', 'Bagas',
+      'Bella', 'Daffa', 'Dewi', 'Fajar', 'Fitri',
+      'Galih', 'Intan', 'Kevin', 'Lestari', 'Muhammad',
+      'Nabila', 'Raka', 'Salsabila', 'Yoga', 'Zahra'),
+    ' ',
+    ELT(MOD(`number` - 2, 17) + 1,
+      'Pratama', 'Lestari', 'Santoso', 'Maharani', 'Saputra',
+      'Kartika', 'Nugroho', 'Wulandari', 'Ramadhan', 'Permata',
+      'Kusuma', 'Hidayat', 'Puspita', 'Firmansyah', 'Anggraini',
+      'Setiawan', 'Rahmawati')
+  ),
+  CONCAT('member', LPAD(`number`, 3, '0'), '@example.com'),
+  CONCAT('08', LPAD(1500000000 + `number`, 10, '0')),
+  ELT(MOD(`number` - 2, 10) + 1,
+    'Jakarta Selatan', 'Jakarta Timur', 'Jakarta Barat', 'Jakarta Utara',
+    'Jakarta Pusat', 'Tangerang', 'Tangerang Selatan', 'Bekasi', 'Depok', 'Bogor'),
+  IF(MOD(`number`, 2) = 0, 'Male', 'Female'),
+  DATE_ADD('1985-01-01', INTERVAL MOD(`number` * 137, 7300) DAY),
+  ELT(MOD(`number` - 2, 5) + 1, 'PKG-001', 'PKG-002', 'PKG-003', 'PKG-004', 'PKG-005'),
+  DATE_SUB(CURDATE(), INTERVAL (30 + MOD(`number` * 7, 700)) DAY),
+  CASE
+    WHEN MOD(`number`, 4) = 0
+      THEN DATE_SUB(CURDATE(), INTERVAL (1 + MOD(`number`, 180)) DAY)
+    ELSE DATE_ADD(CURDATE(), INTERVAL (30 + MOD(`number` * 11, 300)) DAY)
+  END
+FROM `sequence`
+WHERE TRUE
+ON DUPLICATE KEY UPDATE
+  `full_name` = VALUES(`full_name`),
+  `phone_number` = VALUES(`phone_number`),
+  `address` = VALUES(`address`),
+  `gender` = VALUES(`gender`),
+  `date_of_birth` = VALUES(`date_of_birth`),
+  `package_code` = VALUES(`package_code`),
+  `registration_date` = VALUES(`registration_date`),
+  `membership_expiry_date` = VALUES(`membership_expiry_date`);
+
+-- Status dihitung otomatis agar selalu mengikuti tanggal saat ini.
+CREATE OR REPLACE VIEW `member_status` AS
+SELECT
+  `m`.*,
+  CASE
+    WHEN `m`.`membership_expiry_date` < CURDATE() THEN 'Kadaluwarsa'
+    WHEN `m`.`membership_expiry_date` <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+      THEN 'Perlu Perpanjangan'
+    ELSE 'Aktif'
+  END AS `status`
+FROM `members` AS `m`;
+
+-- Verifikasi setelah import:
+-- SELECT COUNT(*) AS total_member FROM members;
+-- SELECT member_code, full_name, email, status, membership_expiry_date
+-- FROM member_status
+-- WHERE status = 'Perlu Perpanjangan';

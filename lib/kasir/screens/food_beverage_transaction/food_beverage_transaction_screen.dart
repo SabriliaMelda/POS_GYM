@@ -1065,12 +1065,18 @@ class _FoodBeverageTransactionScreenState
 
   String _categoryLabel(String category) {
     switch (category.toLowerCase()) {
+      case 'minuman':
       case 'drinks':
+      case 'coffee':
         return 'Minuman';
+      case 'appetizer':
+      case 'snacks':
+        return 'Appetizer';
+      case 'additional':
+        return 'Additional';
+      case 'makanan':
       case 'meals':
         return 'Makanan';
-      case 'snacks':
-        return 'Camilan';
       default:
         return category;
     }
@@ -1302,23 +1308,32 @@ class _ProductCard extends StatelessWidget {
       return 'assets/images/fnb/protein-shake.png';
     }
     switch (item.category.toLowerCase()) {
-      case 'meals':
-        return 'assets/images/fnb/chicken-meal.png';
+      case 'minuman':
+      case 'drinks':
+      case 'coffee':
+        return 'assets/images/fnb/cold-drinks.png';
+      case 'appetizer':
       case 'snacks':
+      case 'additional':
         return 'assets/images/fnb/healthy-snacks.png';
       default:
-        return 'assets/images/fnb/cold-drinks.png';
+        return 'assets/images/fnb/chicken-meal.png';
     }
   }
 
   String _shortCategory(String category) {
     switch (category.toLowerCase()) {
-      case 'meals':
-        return 'MAKANAN';
-      case 'snacks':
-        return 'CAMILAN';
-      default:
+      case 'minuman':
+      case 'drinks':
+      case 'coffee':
         return 'MINUMAN';
+      case 'appetizer':
+      case 'snacks':
+        return 'APPETIZER';
+      case 'additional':
+        return 'ADDITIONAL';
+      default:
+        return 'MAKANAN';
     }
   }
 

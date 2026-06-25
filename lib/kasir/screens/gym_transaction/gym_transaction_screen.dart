@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/gym_transaction_controller.dart';
+import '../../controllers/member_management_controller.dart';
 import '../../models/index.dart';
 import '../../utils/utils.dart';
 import '../../widgets/index.dart';
@@ -44,6 +45,14 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
       backgroundColor: _background,
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                color: Colors.white,
+                tooltip: 'Kembali',
+                onPressed: () => Get.back<void>(),
+              )
+            : null,
         backgroundColor: _heroStart,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -56,24 +65,35 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
             ),
           ),
         ),
-        titleSpacing: 20,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Paket Gym',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-            ),
-            Text(
-              'Pilih paket membership untuk transaksi baru',
-              style: TextStyle(
-                color: Color(0xFFE8F4FF),
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+        titleSpacing: Navigator.of(context).canPop() ? 4 : 20,
+        title: Obx(() {
+          final renewing = _controller.customerType.value == 'member';
+          final member = _controller.selectedMember.value;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                renewing ? 'Perpanjangan Member' : 'Paket Gym',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-          ],
-        ),
+              Text(
+                renewing && member != null
+                    ? member.name
+                    : 'Pilih paket membership untuk transaksi baru',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFFE8F4FF),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          );
+        }),
         actions: [
           IconButton(
             onPressed: () => _toggleHistory(context),
@@ -842,56 +862,38 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
   }
 
   Future<void> _processTransaction({required bool closeSheet}) async {
-    final package = _controller.selectedPackage.value;
     final type = _controller.customerType.value;
-    if (package == null) return;
+    final message = await _controller.processPayment();
+    if (message == null) return; // gagal / validasi tidak lolos
 
-    if (type == 'member' && _controller.selectedMember.value == null) {
-      Get.snackbar(
-        'Member Belum Dipilih',
-        'Pilih member yang akan diperpanjang.',
-      );
-      return;
-    }
-    final now = DateTime.now();
-    final selectedMember = _controller.selectedMember.value;
-    final customerName = type == 'member'
-        ? selectedMember!.name
-        : type == 'new'
-        ? 'Pendaftaran Member Baru'
-        : 'Non-member Harian';
-
-    await _controller.createTransaction(
-      GymTransaction(
-        transactionId: 'GYM-${now.millisecondsSinceEpoch}',
-        memberId: selectedMember?.id ?? 0,
-        memberName: customerName,
-        gymPackageId: package.id ?? 0,
-        packageName: package.name,
-        amount: _controller.transactionTotal,
-        paymentMethod: _controller.paymentMethod.value,
-        status: 'Completed',
-        transactionDate: now,
-        notes: type == 'new'
-            ? 'Pembayaran member baru | Data diri melalui QR registrasi kasir'
-            : type == 'guest'
-            ? 'Kunjungan harian non-member'
-            : 'Perpanjangan member',
-        createdAt: now,
-        updatedAt: now,
+    Get.snackbar(
+      'Pembayaran Berhasil',
+      message,
+      icon: Icon(
+        type == 'new'
+            ? Icons.qr_code_scanner_rounded
+            : Icons.check_circle_rounded,
+        color: _accent,
       ),
     );
 
-    if (type == 'new') {
-      Get.snackbar(
-        'Pembayaran Berhasil',
-        'Silakan arahkan pelanggan untuk scan QR registrasi di meja kasir.',
-        icon: const Icon(Icons.qr_code_scanner_rounded, color: _accent),
-      );
+    // Perpanjangan: segarkan daftar member agar masa berlaku baru langsung
+    // terlihat saat kembali ke halaman member.
+    if (type == 'member' &&
+        Get.isRegistered<MemberManagementController>()) {
+      Get.find<MemberManagementController>().loadMembers();
     }
 
     _clearTransaction();
+
+    // Tutup panel transaksi bila ditampilkan sebagai bottom sheet.
     if (closeSheet && Get.isBottomSheetOpen == true) Get.back<void>();
+
+    // Perpanjangan: kembali otomatis ke halaman member (hanya jika layar ini
+    // dibuka dari tombol "Perpanjang", yaitu di-push di atas shell kasir).
+    if (type == 'member' && (Get.key.currentState?.canPop() ?? false)) {
+      Get.back<void>();
+    }
   }
 
   void _showHistorySheet(BuildContext context) {

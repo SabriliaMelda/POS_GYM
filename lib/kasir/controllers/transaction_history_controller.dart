@@ -7,6 +7,7 @@ class TransactionHistoryController extends GetxController {
 
   var gymTransactions = <GymTransaction>[].obs;
   var fbTransactions = <FoodBeverageTransaction>[].obs;
+  var attendanceRecords = <Attendance>[].obs;
   var isLoading = false.obs;
 
   @override
@@ -23,9 +24,12 @@ class TransactionHistoryController extends GetxController {
       final fbTrans = List<FoodBeverageTransaction>.from(
         _mockData.foodBeverageTransactions,
       )..sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+      final attendance = List<Attendance>.from(_mockData.attendanceRecords)
+        ..sort((a, b) => b.attendanceDate.compareTo(a.attendanceDate));
 
       gymTransactions.value = gymTrans;
       fbTransactions.value = fbTrans;
+      attendanceRecords.value = attendance;
     } catch (e) {
       Get.snackbar('Kesalahan', 'Gagal memuat transaksi: $e');
     } finally {

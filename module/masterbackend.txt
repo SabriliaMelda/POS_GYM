@@ -1,0 +1,398 @@
+CATATAN BACKEND MASTER DATA F&B (GO + MYSQL + FLUTTER)
+======================================================
+
+1. TUJUAN
+---------
+
+Fitur ini menghubungkan halaman Admin > Master Data > Food & Beverage dengan
+database MySQL pos_gym melalui backend Go.
+
+Aliran datanya:
+
+MySQL food_beverage_items
+        |
+        v
+Backend Go /api/admin/master/fnb
+        |
+        v
+AdminMasterDataRepository (HTTP Flutter)
+        |
+        v
+AdminMasterDataScreen
+
+Halaman tidak lagi mengambil daftar F&B dari MockDataService. Data akan selalu
+dimuat dari API saat halaman dibuka dan dimuat ulang setelah tambah, edit, atau
+hapus berhasil.
+
+
+2. FILE YANG TERLIBAT
+---------------------
+
+Database dan data awal:
+- module/masterdata.txt
+
+Backend Go:
+- backend/cmd/api/main.go
+- backend/internal/handler/admin_master_fnb.go
+- backend/internal/handler/admin_master_fnb_upload.go
+- backend/internal/handler/admin_account.go
+  Fungsi requireAdmin dari file ini dipakai untuk mengamankan endpoint.
+
+Flutter:
+- lib/admin/screens/master/admin_master_data_screen.dart
+- lib/admin/screens/master/admin_master_data_service.dart
+- lib/kasir/models/food_beverage_item.dart
+
+Gambar awal bawaan Flutter:
+- assets/images/fnb/menu-page-1.jpeg
+- assets/images/fnb/menu-page-2.jpeg
+- assets/images/fnb/menu-page-3.jpeg
+
+Folder gambar hasil upload admin:
+- backend/uploads/fnb/
+
+Folder uploads/fnb diabaikan Git agar gambar operasional tidak ikut masuk ke
+repository. File .gitkeep dipakai agar struktur folder tetap tersedia.
+
+
+3. PERSIAPAN DATABASE
+---------------------
+
+1. Buka phpMyAdmin.
+2. Pilih database pos_gym.
+3. Buka tab SQL.
+4. Salin dan jalankan seluruh isi module/masterdata.txt.
+5. Pastikan query pemeriksaan menampilkan 99 menu.
+
+Pemeriksaan manual:
+
+USE pos_gym;
+
+SELECT COUNT(*) AS total_menu
+FROM food_beverage_items;
+
+SELECT item_id, name, category, member_price, price, stock, image_path
+FROM food_beverage_items
+ORDER BY item_id;
+
+Arti kolom penting:
+- member_price: harga khusus member.
+- price: harga non-member dan kolom harga utama untuk kompatibilitas aplikasi.
+- stock: jumlah stok saat ini.
+- image_path: path relatif gambar, misalnya /uploads/fnb/abc123.jpg.
+- is_active: 1 berarti menu aktif, 0 berarti nonaktif.
+
+
+4. KONFIGURASI BACKEND GO
+-------------------------
+
+Backend membaca backend/.env. Contoh pengaturan lokal:
+
+APP_ENV=development
+APP_PORT=8080
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=pos_gym
+JWT_SECRET=ganti-dengan-secret-yang-kuat
+JWT_TTL_HOURS=24
+CORS_ALLOWED_ORIGINS=*
+
+Jalankan backend dari root project:
+
+cd D:\pos_gym\backend
+go run ./cmd/api
+
+Tes kesehatan server:
+
+Invoke-RestMethod -Uri http://localhost:8080/health
+
+Hasil yang benar:
+
+status
+------
+ok
+
+
+5. ENDPOINT MASTER DATA F&B
+---------------------------
+
+Semua endpoint memerlukan login admin dan header:
+
+Authorization: Bearer <token>
+Content-Type: application/json
+
+Daftar endpoint:
+
+GET    /api/admin/master/fnb
+POST   /api/admin/master/fnb
+PUT    /api/admin/master/fnb/{id}
+DELETE /api/admin/master/fnb/{id}
+POST   /api/admin/master/fnb/image
+
+GET mengambil seluruh menu.
+POST membuat menu baru.
+PUT memperbarui menu berdasarkan primary key id.
+DELETE menghapus menu berdasarkan primary key id.
+POST image menerima multipart field bernama image dan mengembalikan path file.
+
+Catatan: {id} adalah nilai kolom id, bukan kode seperti FNB-001.
+
+Ketentuan upload gambar:
+- Format yang diterima: JPG, PNG, dan WEBP.
+- Ukuran maksimal: 5 MB.
+- Nama file dibuat acak oleh backend agar tidak bentrok.
+- File disimpan di backend/uploads/fnb.
+- Database hanya menyimpan path relatif, bukan isi file biner.
+- Gambar lama hasil upload dihapus saat diganti atau menu dihapus.
+
+
+6. CONTOH PENGUJIAN DENGAN POWERSHELL
+-------------------------------------
+
+Login sebagai admin:
+
+$loginBody = @{
+  username = 'admin'
+  password = 'Admin@123'
+  role = 'admin'
+} | ConvertTo-Json
+
+$login = Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:8080/api/auth/login `
+  -ContentType 'application/json' `
+  -Body $loginBody
+
+$headers = @{
+  Authorization = "Bearer $($login.token)"
+}
+
+Mengambil daftar menu:
+
+$result = Invoke-RestMethod `
+  -Method Get `
+  -Uri http://localhost:8080/api/admin/master/fnb `
+  -Headers $headers
+
+$result.items | Select-Object id,item_id,name,member_price,price,stock
+
+Mengunggah gambar dengan curl dari PowerShell:
+
+$uploadJson = curl.exe -sS `
+  -X POST http://localhost:8080/api/admin/master/fnb/image `
+  -H "Authorization: Bearer $($login.token)" `
+  -F "image=@D:\gambar\menu-baru.jpg"
+
+$upload = $uploadJson | ConvertFrom-Json
+$upload.path
+
+Menambah menu:
+
+$newMenu = @{
+  item_id = 'FNB-100'
+  name = 'Contoh Menu'
+  description = 'Data pengujian'
+  category = 'Drinks'
+  member_price = 10000
+  price = 12000
+  stock = 10
+  image_path = $upload.path
+  is_active = $true
+} | ConvertTo-Json
+
+$created = Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:8080/api/admin/master/fnb `
+  -Headers $headers `
+  -ContentType 'application/json' `
+  -Body $newMenu
+
+Mengubah menu yang baru dibuat:
+
+$editMenu = @{
+  item_id = 'FNB-100'
+  name = 'Contoh Menu Diperbarui'
+  description = 'Data pengujian edit'
+  category = 'Drinks'
+  member_price = 11000
+  price = 13000
+  stock = 20
+  image_path = $upload.path
+  is_active = $true
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Put `
+  -Uri "http://localhost:8080/api/admin/master/fnb/$($created.item.id)" `
+  -Headers $headers `
+  -ContentType 'application/json' `
+  -Body $editMenu
+
+Menghapus data pengujian:
+
+Invoke-RestMethod `
+  -Method Delete `
+  -Uri "http://localhost:8080/api/admin/master/fnb/$($created.item.id)" `
+  -Headers $headers
+
+
+7. CARA KERJA BACKEND GO
+------------------------
+
+Pendaftaran route dilakukan di backend/cmd/api/main.go dengan http.ServeMux.
+Contoh:
+
+mux.HandleFunc("GET /api/admin/master/fnb", authHandler.ListFNBItems)
+
+Handler berada di backend/internal/handler/admin_master_fnb.go.
+
+Urutan setiap request perubahan:
+1. requireAdmin memeriksa token JWT.
+2. httpx.ReadJSON membaca JSON dan menolak field asing.
+3. Input dirapikan dengan strings.TrimSpace.
+4. Backend memvalidasi kode, nama, kategori, harga, dan stok.
+5. Query memakai placeholder ? agar input tidak digabung langsung ke SQL.
+6. MySQL menjalankan INSERT, UPDATE, atau DELETE.
+7. Backend mengirim JSON dan HTTP status yang sesuai.
+
+Validasi penting:
+- Kode, nama, dan kategori wajib diisi.
+- Harga dan stok tidak boleh negatif.
+- Harga member tidak boleh lebih mahal dari harga non-member.
+- item_id harus unik.
+- Endpoint hanya bisa diakses role admin.
+
+
+8. CARA KERJA FLUTTER
+---------------------
+
+AdminMasterDataRepository bertugas:
+1. Membaca token dari SharedPreferences.
+2. Menambahkan Authorization header.
+3. Mengirim request HTTP ke backend Go.
+4. Mengubah JSON menjadi FoodBeverageItem.
+5. Melempar pesan error backend bila status HTTP gagal.
+
+AdminMasterDataScreen bertugas:
+1. Memanggil _loadFnbItems saat initState.
+2. Menampilkan loading selama request berjalan.
+3. Menampilkan pesan dan tombol Coba Lagi ketika API gagal.
+4. Membuat kartu dari data database.
+5. Membuka form tambah atau edit.
+6. Mengirim perubahan melalui repository.
+7. Memuat ulang daftar setelah operasi berhasil.
+
+Tampilan editor responsif:
+- Pada lebar layar minimal 900 px, katalog berada di kiri dan form tambah/edit
+  berada di panel kanan seperti konsep katalog dan keranjang pada kasir F&B.
+- Katalog dan form memiliki scroll masing-masing.
+- Kartu yang sedang diedit diberi garis biru sebagai penanda pilihan.
+- Footer panel selalu menampilkan tombol Hapus, Batal, dan Simpan.
+- Pada layar kurang dari 900 px, form memakai dialog agar bidang input tidak
+  menjadi terlalu sempit.
+
+Pencarian dan filter katalog:
+- Pencarian bekerja langsung pada nama, kode item, dan deskripsi menu.
+- Filter kategori menormalkan kategori lama menjadi Makanan, Minuman,
+  Appetizer, atau Additional.
+- Setiap chip kategori menampilkan jumlah produknya.
+- Label hasil menampilkan jumlah menu yang cocok dengan pencarian dan filter.
+- Proses filter dilakukan lokal setelah data API dimuat sehingga tidak membuat
+  request baru pada setiap ketikan.
+
+Saat admin memilih gambar, Flutter membaca file sebagai bytes dan mengirimkannya
+dengan multipart/form-data. Backend menyimpan file terlebih dahulu, lalu Flutter
+memakai path respons upload ketika membuat atau memperbarui record menu.
+
+Path /uploads/... dibentuk menjadi URL backend dan ditampilkan dengan
+Image.network. Path assets/... milik data awal tetap ditampilkan dengan
+Image.asset agar data lama tetap kompatibel.
+
+
+9. MENENTUKAN ALAMAT BACKEND UNTUK FLUTTER
+------------------------------------------
+
+Default project saat ini:
+
+http://192.168.1.106:8080
+
+Alamat dapat diganti tanpa mengubah source code memakai dart-define:
+
+flutter run --dart-define=API_BASE_URL=http://localhost:8080
+
+Untuk Android emulator biasanya gunakan:
+
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
+
+Untuk HP fisik, gunakan IP komputer pada jaringan Wi-Fi yang sama:
+
+flutter run --dart-define=API_BASE_URL=http://IP_KOMPUTER:8080
+
+Pastikan firewall mengizinkan port 8080 dan backend aktif.
+
+
+10. STATUS HTTP YANG DIGUNAKAN
+------------------------------
+
+200 OK            : GET, PUT, atau DELETE berhasil.
+201 Created       : POST berhasil membuat menu.
+400 Bad Request   : JSON atau data input tidak valid.
+401 Unauthorized  : token hilang, salah, atau kedaluwarsa.
+403 Forbidden     : user bukan admin.
+404 Not Found     : ID menu tidak ditemukan.
+409 Conflict      : kode menu duplikat atau data masih memiliki relasi.
+500 Internal Error: kesalahan query/server yang tidak terduga.
+503 Unavailable   : tabel F&B belum dibuat.
+
+
+11. MASALAH UMUM
+----------------
+
+Pesan "tabel F&B belum tersedia":
+- Jalankan seluruh module/masterdata.txt pada database pos_gym yang sama dengan
+  DB_NAME backend.
+
+Pesan "Sesi login tidak ditemukan":
+- Login ulang sebagai admin agar token tersimpan di SharedPreferences.
+
+Pesan "Connection refused" atau loading gagal:
+- Pastikan backend Go sedang berjalan.
+- Periksa API_BASE_URL.
+- Periksa IP komputer dan firewall port 8080.
+
+Gambar tidak tampil:
+- Pastikan backend sedang berjalan karena /uploads disajikan oleh backend Go.
+- Pastikan file hasil upload ada di backend/uploads/fnb.
+- Pastikan API_BASE_URL mengarah ke backend yang sama dengan tempat upload.
+- Pastikan ukuran gambar maksimal 5 MB dan formatnya JPG, PNG, atau WEBP.
+
+Catatan deployment:
+- Penyimpanan backend/uploads cocok untuk server lokal atau server dengan disk
+  persisten.
+- Pada hosting dengan filesystem sementara seperti instance ephemeral, gunakan
+  persistent disk atau object storage agar gambar tidak hilang saat redeploy.
+
+Kode menu sudah digunakan:
+- item_id bersifat unik. Gunakan kode lain atau edit record yang sudah ada.
+
+
+12. PEMERIKSAAN SOURCE CODE
+---------------------------
+
+Backend:
+
+cd D:\pos_gym\backend
+gofmt -w cmd\api\main.go internal\handler\admin_master_fnb.go
+go test ./...
+
+Flutter:
+
+cd D:\pos_gym
+dart format lib\admin\screens\master lib\kasir\models\food_beverage_item.dart
+flutter analyze
+
+Setelah semua langkah selesai, login sebagai admin, buka menu Master Data, lalu
+uji tambah, edit, dan hapus satu menu. Periksa phpMyAdmin untuk memastikan data
+yang berubah di layar sama dengan data dalam tabel food_beverage_items.

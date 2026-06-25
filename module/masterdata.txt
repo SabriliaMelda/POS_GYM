@@ -1,0 +1,195 @@
+MASTER DATA FOOD & BEVERAGE
+===========================
+
+CATATAN (21 Juni 2026): Kolom `category` kini DIBATASI 3 nilai: Makanan, Minuman, Appetizer.
+Nilai kategori spesifik pada INSERT di bawah (Coffee, Rice, Salad, dst) sudah usang.
+Pemetaan yang dipakai sekarang: Coffee & Drinks -> Minuman; Appetizer -> Appetizer; selainnya -> Makanan.
+JANGAN jalankan ulang INSERT di bawah tanpa menyesuaikan kategori, atau data akan kembali ke nilai lama.
+
+Sumber menu dan harga:
+1. WhatsApp Image 2026-06-20 at 19.09.21.jpeg
+2. WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg
+3. WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg
+
+Ketentuan pembacaan harga:
+- Format 20/25K disimpan sebagai harga member Rp20.000 dan harga non-member Rp25.000.
+- Harga tunggal disimpan sama untuk member dan non-member.
+- Kolom price adalah harga non-member untuk kompatibilitas dengan model aplikasi saat ini.
+- Stok awal 0 karena jumlah stok tidak dicantumkan pada foto menu.
+- image_path menunjuk ke foto WhatsApp yang memuat menu terkait.
+
+Jalankan seluruh SQL berikut melalui phpMyAdmin pada database pos_gym.
+
+USE pos_gym;
+
+CREATE TABLE IF NOT EXISTS food_beverage_items (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  item_id VARCHAR(20) NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  description VARCHAR(255) NOT NULL DEFAULT '',
+  category VARCHAR(50) NOT NULL,
+  member_price DECIMAL(12,2) UNSIGNED NOT NULL,
+  price DECIMAL(12,2) UNSIGNED NOT NULL COMMENT 'Harga non-member',
+  stock INT UNSIGNED NOT NULL DEFAULT 0,
+  image_path VARCHAR(255) DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_food_beverage_items_item_id (item_id),
+  KEY idx_food_beverage_items_category (category),
+  KEY idx_food_beverage_items_active (is_active),
+  CONSTRAINT chk_food_beverage_member_price CHECK (member_price >= 0),
+  CONSTRAINT chk_food_beverage_price CHECK (price >= member_price)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO food_beverage_items
+  (item_id, name, description, category, member_price, price, stock, image_path, is_active)
+VALUES
+  ('FNB-001', 'Chicken Salad', 'Menu salad Rumah Hobi', 'Salad', 35000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-002', 'Chicken Grill Salad & Fries', 'Menu salad Rumah Hobi', 'Salad', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-003', 'Mix Salad Protein', 'Menu salad Rumah Hobi', 'Salad', 45000, 45000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-004', 'Mix Vegetable Chicken Salad', 'Menu salad Rumah Hobi', 'Salad', 25000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-005', 'Salmon Salad', 'Menu salad Rumah Hobi', 'Salad', 45000, 45000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-006', 'Healthy Food Salad', 'Menu salad Rumah Hobi', 'Salad', 45000, 45000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+
+  ('FNB-007', 'Nasi Sapi Hitam', 'Menu nasi Rumah Hobi', 'Rice', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-008', 'Nasi Cabe Hijau', 'Menu nasi Rumah Hobi', 'Rice', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-009', 'Nasi Capcay', 'Menu nasi Rumah Hobi', 'Rice', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-010', 'Nasi Kung Pao Chicken', 'Menu nasi Rumah Hobi', 'Rice', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-011', 'Honey Chicken Rice', 'Menu nasi Rumah Hobi', 'Rice', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-012', 'Nasi Sapi/Ayam Saus Tausi', 'Menu nasi Rumah Hobi', 'Rice', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-013', 'Szechuan Chicken', 'Menu nasi Rumah Hobi', 'Rice', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-014', 'Nasi Ayam Saus Asam Manis', 'Menu nasi Rumah Hobi', 'Rice', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-015', 'Nasi Ayam Serundeng', 'Menu nasi Rumah Hobi', 'Rice', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+
+  ('FNB-016', 'Spaghetti Bolognese', 'Menu spaghetti Rumah Hobi', 'Spaghetti', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-017', 'Spaghetti Carbonara', 'Menu spaghetti Rumah Hobi', 'Spaghetti', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-018', 'Spaghetti Aglio Olio Healthy Food', 'Menu spaghetti Rumah Hobi', 'Spaghetti', 40000, 40000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-019', 'Indomie Rebus/Goreng Tanpa Telur', 'Menu Indomie Rumah Hobi', 'Indomie', 10000, 10000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-020', 'Paket Mie Rebus/Goreng Pakai Telur', 'Menu Indomie Rumah Hobi', 'Indomie', 15000, 15000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+
+  ('FNB-021', 'Cireng RH', 'Menu appetizer Rumah Hobi', 'Appetizer', 18000, 20000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-022', 'French Fries', 'Menu appetizer Rumah Hobi', 'Appetizer', 18000, 20000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-023', 'Dimsum', 'Menu appetizer Rumah Hobi', 'Appetizer', 18000, 20000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-024', 'Pisang Goreng Wijen', 'Menu appetizer Rumah Hobi', 'Appetizer', 18000, 20000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-025', 'Thai Fried Chicken', 'Menu appetizer Rumah Hobi', 'Appetizer', 20000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-026', 'Chicken Wings', 'Menu appetizer Rumah Hobi', 'Appetizer', 20000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-027', 'Roti Bakar Manis', 'Menu appetizer Rumah Hobi', 'Appetizer', 10000, 15000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-028', 'Lumpia RH', 'Menu appetizer Rumah Hobi', 'Appetizer', 22000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-029', 'Otak-Otak Goreng', 'Menu appetizer Rumah Hobi', 'Appetizer', 18000, 20000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+  ('FNB-030', 'Bakwan Jagung', 'Menu appetizer Rumah Hobi', 'Appetizer', 18000, 18000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg', 1),
+
+  ('FNB-031', 'Americano', 'Menu coffee Rumah Hobi', 'Coffee', 15000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-032', 'Cappuccino', 'Menu coffee Rumah Hobi', 'Coffee', 18000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-033', 'Cafe Latte', 'Menu coffee Rumah Hobi', 'Coffee', 18000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-034', 'Vanilla Aren', 'Menu coffee Rumah Hobi', 'Coffee', 20000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-035', 'Banana Espresso', 'Menu coffee Rumah Hobi', 'Coffee', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-036', 'Matcha Latte', 'Menu coffee Rumah Hobi', 'Coffee', 18000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-037', 'Avocado Latte Espresso', 'Menu coffee Rumah Hobi', 'Coffee', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-038', 'Coklat Latte', 'Menu coffee Rumah Hobi', 'Coffee', 18000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-039', 'Vanilla Latte Ice', 'Menu coffee Rumah Hobi', 'Coffee', 15000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-040', 'Pandan Coffee Latte', 'Menu coffee Rumah Hobi', 'Coffee', 22000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-041', 'Hazelnut Coffee Latte', 'Menu coffee Rumah Hobi', 'Coffee', 18000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+
+  ('FNB-042', 'Marie Regal Shake', 'Menu minuman Rumah Hobi', 'Drinks', 25000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-043', 'Oreo Cookies Cream', 'Menu minuman Rumah Hobi', 'Drinks', 25000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-044', 'Green Tea', 'Menu minuman Rumah Hobi', 'Drinks', 20000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-045', 'Lemon Tea', 'Menu minuman Rumah Hobi', 'Drinks', 20000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-046', 'Lychee Tea', 'Menu minuman Rumah Hobi', 'Drinks', 20000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-047', 'Milky Brown Sugar', 'Menu minuman Rumah Hobi', 'Drinks', 25000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-048', 'Salted Caramel Macchiato', 'Menu minuman Rumah Hobi', 'Drinks', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-049', 'Red Velvet', 'Menu minuman Rumah Hobi', 'Drinks', 25000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-050', 'Mix Juice', 'Menu minuman Rumah Hobi', 'Drinks', 18000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-051', 'Ice Tea', 'Menu minuman Rumah Hobi', 'Drinks', 10000, 15000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+  ('FNB-052', 'Mineral Water', 'Menu minuman Rumah Hobi', 'Drinks', 5000, 10000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg', 1),
+
+  ('FNB-053', 'Nasi Goreng Ala Rumah Hobi', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 20000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-054', 'Nasi Goreng Kecap', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 20000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-055', 'Nasi Goreng Ikan Asin', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 25000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-056', 'Nasi Goreng Vegetarian', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 25000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-057', 'Nasi Goreng Oriental', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-058', 'Nasi Goreng Kampung', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-059', 'Nasi Goreng Singapore', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-060', 'Nasi Goreng Hongkong', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-061', 'Nasi Goreng Seafood', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-062', 'Nasi Goreng Kebuli', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 30000, 36000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-063', 'Nasi Goreng Cabe Ijo Beef', 'Menu nasi goreng Rumah Hobi', 'Nasi Goreng', 30000, 36000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+
+  ('FNB-064', 'Kwetiau Goreng Kecap', 'Menu kwetiau Rumah Hobi', 'Kwetiau', 25000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-065', 'Kwetiau Siram', 'Menu kwetiau Rumah Hobi', 'Kwetiau', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-066', 'Kwetiau Goreng Kampung', 'Menu kwetiau Rumah Hobi', 'Kwetiau', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-067', 'Kwetiau Goreng Thailand', 'Menu kwetiau Rumah Hobi', 'Kwetiau', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-068', 'Kwetiau Goreng Singapore', 'Menu kwetiau Rumah Hobi', 'Kwetiau', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+
+  ('FNB-069', 'Garlic Kalian', 'Menu sayuran Rumah Hobi', 'Vegetable', 20000, 20000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-070', 'Garlic Broccoli', 'Menu sayuran Rumah Hobi', 'Vegetable', 20000, 20000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-071', 'Garlic Baby Kalian', 'Menu sayuran Rumah Hobi', 'Vegetable', 20000, 20000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-072', 'Kalian With Oyster Sauce', 'Menu sayuran Rumah Hobi', 'Vegetable', 23000, 23000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-073', 'Kangkung Balacan', 'Menu sayuran Rumah Hobi', 'Vegetable', 18000, 18000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-074', 'Toge Cah Ikan Asin', 'Menu sayuran Rumah Hobi', 'Vegetable', 18000, 18000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-075', 'Buncis Cah Ayam/Ikan Asin', 'Menu sayuran Rumah Hobi', 'Vegetable', 20000, 20000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+
+  ('FNB-076', 'Mie Goreng Kampung', 'Menu mie Rumah Hobi', 'Mie/Bihun', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-077', 'Mie Goreng Malaysia', 'Menu mie Rumah Hobi', 'Mie/Bihun', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-078', 'Mie Goreng Singapore', 'Menu mie Rumah Hobi', 'Mie/Bihun', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-079', 'Mie Goreng Cabe Garam', 'Menu mie Rumah Hobi', 'Mie/Bihun', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-080', 'Mie Goreng Hongkong', 'Menu mie Rumah Hobi', 'Mie/Bihun', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-081', 'Mie Kuah Godog', 'Menu mie Rumah Hobi', 'Mie/Bihun', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-082', 'Mie Ayam', 'Menu mie Rumah Hobi', 'Mie/Bihun', 25000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-083', 'Mie Ayam Spesial', 'Menu mie Rumah Hobi', 'Mie/Bihun', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-084', 'Mie Ayam Wonton', 'Menu mie Rumah Hobi', 'Mie/Bihun', 28000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-085', 'Bihun Kuah Godog', 'Menu bihun Rumah Hobi', 'Mie/Bihun', 18000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-086', 'Bihun Goreng', 'Menu bihun Rumah Hobi', 'Mie/Bihun', 20000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+
+  ('FNB-087', 'Rice Bowl Sambal Geprek', 'Menu rice bowl Rumah Hobi', 'Rice Bowl', 25000, 36000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-088', 'Rice Bowl Cabe Garam', 'Menu rice bowl Rumah Hobi', 'Rice Bowl', 26000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-089', 'Rice Bowl Asam Manis', 'Menu rice bowl Rumah Hobi', 'Rice Bowl', 26000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-090', 'Rice Bowl Sambel Matah', 'Menu rice bowl Rumah Hobi', 'Rice Bowl', 25000, 34000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-091', 'Rice Bowl Cabe Hijau', 'Menu rice bowl Rumah Hobi', 'Rice Bowl', 28000, 34000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-092', 'Rice Bowl Lada Hitam', 'Menu rice bowl Rumah Hobi', 'Rice Bowl', 25000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-093', 'Rice Bowl Telur Asin', 'Menu rice bowl Rumah Hobi', 'Rice Bowl', 30000, 36000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-094', 'Rice Bowl Beef Teriyaki', 'Menu rice bowl Rumah Hobi', 'Rice Bowl', 25000, 35000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-095', 'Rice Bowl Ayam Serundeng', 'Menu rice bowl Rumah Hobi', 'Rice Bowl', 30000, 36000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+
+  ('FNB-096', 'Sapo Tofu', 'Menu tofu Rumah Hobi', 'Tofu', 30000, 30000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-097', 'Moon Tofu', 'Menu tofu Rumah Hobi', 'Tofu', 28000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-098', 'Tofu Cabe Garam', 'Menu tofu Rumah Hobi', 'Tofu', 28000, 28000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1),
+  ('FNB-099', 'Chief Tofu', 'Menu tofu Rumah Hobi', 'Tofu', 25000, 25000, 0, 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg', 1)
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  description = VALUES(description),
+  category = VALUES(category),
+  member_price = VALUES(member_price),
+  price = VALUES(price),
+  image_path = VALUES(image_path),
+  is_active = VALUES(is_active),
+  updated_at = CURRENT_TIMESTAMP;
+
+-- Salinan foto ditempatkan di assets agar dapat ditampilkan oleh Flutter.
+UPDATE food_beverage_items
+SET image_path = 'assets/images/fnb/menu-page-1.jpeg'
+WHERE image_path = 'module/WhatsApp Image 2026-06-20 at 19.09.21.jpeg';
+
+UPDATE food_beverage_items
+SET image_path = 'assets/images/fnb/menu-page-2.jpeg'
+WHERE image_path = 'module/WhatsApp Image 2026-06-20 at 19.09.21 (1).jpeg';
+
+UPDATE food_beverage_items
+SET image_path = 'assets/images/fnb/menu-page-3.jpeg'
+WHERE image_path = 'module/WhatsApp Image 2026-06-20 at 19.09.21 (2).jpeg';
+
+-- Pemeriksaan hasil: jumlah yang diharapkan adalah 99 menu.
+SELECT COUNT(*) AS total_menu FROM food_beverage_items;
+
+SELECT
+  item_id,
+  name,
+  category,
+  member_price,
+  price AS non_member_price,
+  stock,
+  image_path,
+  is_active
+FROM food_beverage_items
+ORDER BY item_id;

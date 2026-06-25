@@ -24,10 +24,18 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   static const _border = Color(0xFFE2E8F0);
   static const _primary = Color(0xFF1D4ED8);
   static const _navy = Color(0xFF071A3D);
+  static const _revenueTypes = [
+    _HistoryType.registration,
+    _HistoryType.dailyPass,
+    _HistoryType.foodBeverage,
+    _HistoryType.renewal,
+  ];
   late final TransactionHistoryController _controller;
   final _searchController = TextEditingController();
   String _query = '';
   _HistoryType? _selectedType;
+  _DateFilterMode _dateFilterMode = _DateFilterMode.all;
+  DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   void initState() {
@@ -93,6 +101,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       body: Obx(() {
         final entries = _buildEntries();
         final filteredEntries = _filterEntries(entries);
+        final groupedEntries = _groupEntriesByDate(filteredEntries);
 
         return RefreshIndicator(
           onRefresh: _controller.loadTransactions,
@@ -123,7 +132,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                         ),
                       ),
                       Text(
-                        '${filteredEntries.length} transaksi',
+                        '${filteredEntries.length} aktivitas',
                         style: const TextStyle(
                           color: _muted,
                           fontSize: 11,
@@ -143,8 +152,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 const SliverFillRemaining(
                   hasScrollBody: false,
                   child: EmptyStateWidget(
-                    title: 'Transaksi Tidak Ditemukan',
-                    subtitle: 'Ubah kata kunci atau filter transaksi',
+                    title: 'Riwayat Tidak Ditemukan',
+                    subtitle: 'Ubah kata kunci, tipe, atau filter tanggal',
                     icon: Icons.receipt_long_outlined,
                   ),
                 )
@@ -152,10 +161,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
                   sliver: SliverList.separated(
-                    itemCount: filteredEntries.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemCount: groupedEntries.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 14),
                     itemBuilder: (context, index) =>
-                        _buildTransactionCard(filteredEntries[index]),
+                        _buildDateSection(groupedEntries[index]),
                   ),
                 ),
             ],
@@ -250,7 +259,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   Widget _buildRevenueChart(List<_HistoryEntry> entries) {
     final groups = _monthlyRevenue(entries);
-    final types = _HistoryType.values;
+    final types = _revenueTypes;
     final maxValue = groups.fold<double>(0, (max, group) {
       final groupMax = group.values.values.fold<double>(0, math.max);
       return math.max(max, groupMax);
@@ -328,9 +337,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       for (var i = 3; i >= 0; i--) DateTime(now.year, now.month - i, 1),
     ];
     return months.map((month) {
-      final values = {for (final type in _HistoryType.values) type: 0.0};
+      final values = {for (final type in _revenueTypes) type: 0.0};
       for (final entry in entries) {
-        if (entry.date.year == month.year && entry.date.month == month.month) {
+        if (_revenueTypes.contains(entry.type) &&
+            entry.date.year == month.year &&
+            entry.date.month == month.month) {
           values[entry.type] = values[entry.type]! + entry.amount;
         }
       }
@@ -397,6 +408,43 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             ),
           ),
           const SizedBox(height: 11),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildDateFilterChip(
+                icon: Icons.all_inbox_rounded,
+                label: 'Semua Tanggal',
+                count: entries.length,
+                selected: _dateFilterMode == _DateFilterMode.all,
+                onSelected: () =>
+                    setState(() => _dateFilterMode = _DateFilterMode.all),
+              ),
+              _buildDateFilterChip(
+                icon: Icons.today_rounded,
+                label: 'Hari Ini',
+                count: _countForDateFilter(entries, _DateFilterMode.today),
+                selected: _dateFilterMode == _DateFilterMode.today,
+                onSelected: () =>
+                    setState(() => _dateFilterMode = _DateFilterMode.today),
+              ),
+              _buildDateFilterChip(
+                icon: Icons.calendar_month_rounded,
+                label: 'Bulan Ini',
+                count: _countForMonth(entries, DateTime.now()),
+                selected:
+                    _dateFilterMode == _DateFilterMode.month &&
+                    _isSameMonth(_selectedMonth, DateTime.now()),
+                onSelected: () => setState(() {
+                  final now = DateTime.now();
+                  _dateFilterMode = _DateFilterMode.month;
+                  _selectedMonth = DateTime(now.year, now.month);
+                }),
+              ),
+              _buildCalendarFilterButton(entries),
+            ],
+          ),
+          const SizedBox(height: 11),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -451,6 +499,181 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       backgroundColor: _background,
       side: BorderSide(color: selected ? _primary : _border),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+    );
+  }
+
+  Widget _buildDateFilterChip({
+    required IconData icon,
+    required String label,
+    required int count,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    return InkWell(
+      onTap: onSelected,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? _primary : _background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? _primary : _border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: selected ? Colors.white : _primary),
+            const SizedBox(width: 6),
+            Text(
+              '$label  $count',
+              style: TextStyle(
+                color: selected ? Colors.white : _muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCalendarFilterButton(List<_HistoryEntry> entries) {
+    final monthActive = _dateFilterMode == _DateFilterMode.month;
+    final selected =
+        monthActive && !_isSameMonth(_selectedMonth, DateTime.now());
+    final label = monthActive ? _monthYearLabel(_selectedMonth) : 'Kalender';
+    final count = monthActive ? _countForMonth(entries, _selectedMonth) : null;
+
+    return InkWell(
+      onTap: _pickMonthFilter,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFEFF6FF) : _surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? _primary : _border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.event_rounded, size: 16, color: _primary),
+            const SizedBox(width: 6),
+            Text(
+              count == null ? label : '$label  $count',
+              style: const TextStyle(
+                color: _primary,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickMonthFilter() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedMonth,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      helpText: 'Pilih bulan riwayat',
+      cancelText: 'Batal',
+      confirmText: 'Pakai Bulan',
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _dateFilterMode = _DateFilterMode.month;
+      _selectedMonth = DateTime(picked.year, picked.month);
+    });
+  }
+
+  Widget _buildDateSection(_HistoryDayGroup group) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildDateHeader(group),
+        const SizedBox(height: 8),
+        ...group.entries.map(
+          (entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _buildTransactionCard(entry),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateHeader(_HistoryDayGroup group) {
+    final transactionCount = group.entries
+        .where((entry) => entry.type != _HistoryType.visit)
+        .length;
+    final visitCount = group.entries
+        .where((entry) => entry.type == _HistoryType.visit)
+        .length;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: _primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.calendar_today_rounded,
+              color: Colors.white,
+              size: 17,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _dateHeaderTitle(group.date),
+                  style: const TextStyle(
+                    color: _text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$transactionCount transaksi | $visitCount kunjungan | ${CurrencyUtils.formatCurrencySimple(group.revenue)}',
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${group.entries.length}',
+            style: const TextStyle(
+              color: _primary,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -545,9 +768,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                CurrencyUtils.formatCurrencySimple(entry.amount),
-                style: const TextStyle(
-                  color: _text,
+                entry.type == _HistoryType.visit
+                    ? 'Kunjungan'
+                    : CurrencyUtils.formatCurrencySimple(entry.amount),
+                style: TextStyle(
+                  color: entry.type == _HistoryType.visit
+                      ? visual.color
+                      : _text,
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
                 ),
@@ -601,6 +828,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     final entries = <_HistoryEntry>[
       ..._controller.gymTransactions.map(_entryFromGym),
       ..._controller.fbTransactions.map(_entryFromFoodBeverage),
+      ..._controller.attendanceRecords.map(_entryFromAttendance),
     ];
     entries.sort((a, b) => b.date.compareTo(a.date));
     return entries;
@@ -610,6 +838,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     final query = _query.toLowerCase();
     return entries.where((entry) {
       if (_selectedType != null && entry.type != _selectedType) return false;
+      if (!_matchesDateFilter(entry.date)) return false;
       if (query.isEmpty) return true;
       return entry.customerName.toLowerCase().contains(query) ||
           entry.transactionId.toLowerCase().contains(query) ||
@@ -617,6 +846,121 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           entry.paymentMethod.toLowerCase().contains(query) ||
           _visualFor(entry.type).label.toLowerCase().contains(query);
     }).toList();
+  }
+
+  List<_HistoryDayGroup> _groupEntriesByDate(List<_HistoryEntry> entries) {
+    final grouped = <String, List<_HistoryEntry>>{};
+    for (final entry in entries) {
+      final key = '${entry.date.year}-${entry.date.month}-${entry.date.day}';
+      grouped.putIfAbsent(key, () => []).add(entry);
+    }
+
+    return grouped.values.map((items) {
+      final date = DateTime(
+        items.first.date.year,
+        items.first.date.month,
+        items.first.date.day,
+      );
+      final revenue = items.fold<double>(0, (sum, item) => sum + item.amount);
+      return _HistoryDayGroup(date: date, entries: items, revenue: revenue);
+    }).toList();
+  }
+
+  bool _matchesDateFilter(DateTime date) {
+    return switch (_dateFilterMode) {
+      _DateFilterMode.all => true,
+      _DateFilterMode.today => _isSameDate(date, DateTime.now()),
+      _DateFilterMode.month => _isSameMonth(date, _selectedMonth),
+    };
+  }
+
+  int _countForDateFilter(List<_HistoryEntry> entries, _DateFilterMode mode) {
+    return switch (mode) {
+      _DateFilterMode.all => entries.length,
+      _DateFilterMode.today =>
+        entries
+            .where((entry) => _isSameDate(entry.date, DateTime.now()))
+            .length,
+      _DateFilterMode.month => _countForMonth(entries, _selectedMonth),
+    };
+  }
+
+  int _countForMonth(List<_HistoryEntry> entries, DateTime month) {
+    return entries.where((entry) => _isSameMonth(entry.date, month)).length;
+  }
+
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  bool _isSameMonth(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month;
+  }
+
+  String _dateHeaderTitle(DateTime date) {
+    final label = _isSameDate(date, DateTime.now())
+        ? 'Hari Ini'
+        : DateTimeUtils.isYesterday(date)
+        ? 'Kemarin'
+        : _dayName(date.weekday);
+    return '$label, ${date.day} ${_monthName(date.month)} ${date.year}';
+  }
+
+  String _monthYearLabel(DateTime date) {
+    return '${_monthName(date.month)} ${date.year}';
+  }
+
+  String _monthName(int month) {
+    const names = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return names[(month - 1) % 12];
+  }
+
+  String _dayName(int weekday) {
+    const names = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    return names[(weekday - 1) % 7];
+  }
+
+  DateTime _attendanceDateTime(Attendance attendance) {
+    final base = attendance.attendanceDate;
+    final match = RegExp(
+      r'^(\d{1,2}):(\d{1,2})',
+    ).firstMatch(attendance.checkInTime ?? '');
+    if (match == null) return base;
+
+    final hour = int.tryParse(match.group(1) ?? '');
+    final minute = int.tryParse(match.group(2) ?? '');
+    if (hour == null || minute == null) return base;
+
+    return DateTime(base.year, base.month, base.day, hour, minute);
+  }
+
+  String _attendanceAccessMethod(Attendance attendance) {
+    final credential = (attendance.rfidCardNumber ?? '').toUpperCase();
+    if (credential.contains('RFID')) return 'RFID';
+    if (credential.contains('BARCODE')) return 'Barcode';
+    if (credential.contains('DAILY')) return 'Akses kasir';
+    return 'Manual';
   }
 
   _HistoryEntry _entryFromGym(GymTransaction transaction) {
@@ -640,6 +984,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       _HistoryType.renewal =>
         'Perpanjangan ${transaction.packageName ?? 'membership gym'}',
       _HistoryType.foodBeverage => transaction.packageName ?? 'Transaksi gym',
+      _HistoryType.visit => transaction.packageName ?? 'Kunjungan gym',
     };
 
     return _HistoryEntry(
@@ -676,6 +1021,25 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
+  _HistoryEntry _entryFromAttendance(Attendance attendance) {
+    final dateTime = _attendanceDateTime(attendance);
+    final checkInTime =
+        attendance.checkInTime ?? DateTimeUtils.formatTime(dateTime);
+    final accessMethod = _attendanceAccessMethod(attendance);
+
+    return _HistoryEntry(
+      transactionId:
+          'VISIT-${(attendance.id ?? attendance.memberId).toString().padLeft(4, '0')}',
+      customerName: attendance.memberName ?? 'Member Tidak Diketahui',
+      description: 'Check-in pukul $checkInTime melalui $accessMethod',
+      amount: 0,
+      paymentMethod: accessMethod,
+      status: 'hadir',
+      date: dateTime,
+      type: _HistoryType.visit,
+    );
+  }
+
   ({String label, String shortLabel, IconData icon, Color color}) _visualFor(
     _HistoryType type,
   ) {
@@ -704,6 +1068,12 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         icon: Icons.autorenew_rounded,
         color: const Color(0xFF0891B2),
       ),
+      _HistoryType.visit => (
+        label: 'Kunjungan Member',
+        shortLabel: 'Kunjungan',
+        icon: Icons.login_rounded,
+        color: const Color(0xFF16A34A),
+      ),
     };
   }
 
@@ -728,6 +1098,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           color: const Color(0xFFB91C1C),
           background: const Color(0xFFFEECEC),
         );
+      case 'hadir':
+      case 'checked in':
+        return (
+          label: 'HADIR',
+          color: const Color(0xFF15803D),
+          background: const Color(0xFFEAF7EE),
+        );
       default:
         return (
           label: value.toUpperCase(),
@@ -743,6 +1120,18 @@ class _MonthRevenue {
 
   final String label;
   final Map<_HistoryType, double> values;
+}
+
+class _HistoryDayGroup {
+  const _HistoryDayGroup({
+    required this.date,
+    required this.entries,
+    required this.revenue,
+  });
+
+  final DateTime date;
+  final List<_HistoryEntry> entries;
+  final double revenue;
 }
 
 class _GroupedBarChartPainter extends CustomPainter {
@@ -906,7 +1295,9 @@ class _GroupedBarChartPainter extends CustomPainter {
   }
 }
 
-enum _HistoryType { registration, dailyPass, foodBeverage, renewal }
+enum _HistoryType { registration, dailyPass, foodBeverage, renewal, visit }
+
+enum _DateFilterMode { all, today, month }
 
 class _HistoryEntry {
   const _HistoryEntry({

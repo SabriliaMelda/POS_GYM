@@ -279,7 +279,7 @@ class _AttendanceViewState extends State<_AttendanceView> {
                 autofocus: true,
                 decoration: InputDecoration(
                   labelText: 'Pilih atau cari member',
-                  hintText: 'Contoh: Andi atau MBR-001',
+                  hintText: 'Contoh: Andi atau MBR-58310427',
                   prefixIcon: const Icon(Icons.search_rounded, color: _primary),
                   suffixIcon: _selectedMember == null
                       ? null

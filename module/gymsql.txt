@@ -1,0 +1,31 @@
+-- Database paket gym
+-- MySQL 8+
+
+CREATE TABLE `gym_packages` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `package_code` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `package_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `price` decimal(12,2) UNSIGNED NOT NULL,
+  `package_type` enum('membership','daily') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `duration_days` smallint UNSIGNED NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_gym_packages_code` (`package_code`),
+  KEY `idx_gym_packages_type` (`package_type`),
+  KEY `idx_gym_packages_active` (`is_active`),
+  CONSTRAINT `chk_gym_packages_price` CHECK (`price` >= 0),
+  CONSTRAINT `chk_gym_packages_duration` CHECK (`duration_days` > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `gym_packages`
+  (`package_code`, `package_name`, `description`, `price`, `package_type`, `duration_days`, `is_active`)
+VALUES
+  ('PKG-DAILY', 'Daily Pass', 'Akses gym untuk satu kali kunjungan', 60000.00, 'daily', 1, 1),
+  ('PKG-001', 'Paket 1 Bulan', 'Akses gym penuh selama 30 hari', 199000.00, 'membership', 30, 1),
+  ('PKG-002', 'Paket 2 Bulan', 'Akses gym penuh selama 60 hari', 379000.00, 'membership', 60, 1),
+  ('PKG-003', 'Paket 4 Bulan', 'Akses gym penuh selama 120 hari', 699000.00, 'membership', 120, 1),
+  ('PKG-004', 'Paket 6 Bulan', 'Akses gym penuh selama 180 hari', 999000.00, 'membership', 180, 1),
+  ('PKG-005', 'Paket 1 Tahun', 'Akses gym penuh selama 365 hari', 1799000.00, 'membership', 365, 1);

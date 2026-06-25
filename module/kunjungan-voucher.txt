@@ -1,0 +1,64 @@
+-- =====================================================================
+-- Fitur Kunjungan & Voucher F&B (reward berbasis jumlah kunjungan)
+-- MySQL 8+
+-- Jalankan SEKALI setelah module/member.txt.
+--
+-- Konsep:
+--   Setiap member punya jumlah kunjungan (total_visits). Tiap 50 kunjungan
+--   member dapat 1 voucher diskon F&B dengan persen yang BERULANG (siklus):
+--
+--     50  -> 30%      250 -> 30%
+--     100 -> 50%      300 -> 50%
+--     150 -> 70%      350 -> 70%
+--     200 -> 100%     400 -> 100%   ... dst tanpa berhenti
+--
+--   Tiap voucher diidentifikasi oleh visit_milestone (50, 100, 150, ...),
+--   bukan oleh persen, karena persen yang sama muncul lagi di siklus
+--   berikutnya. Dipakai sekali per milestone; tanggal pemakaian dicatat
+--   di tabel member_voucher_redemptions.
+-- =====================================================================
+
+USE `pos_gym`;
+
+-- 1) Tambah kolom jumlah kunjungan pada tabel members.
+--    (MySQL 8 tidak mendukung ADD COLUMN IF NOT EXISTS, jalankan sekali saja.)
+ALTER TABLE `members`
+  ADD COLUMN `total_visits` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `membership_expiry_date`;
+
+-- 2) Tabel pencatatan voucher yang sudah ditukar.
+CREATE TABLE IF NOT EXISTS `member_voucher_redemptions` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `member_code` VARCHAR(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `voucher_percent` TINYINT UNSIGNED NOT NULL,
+  `visit_milestone` INT UNSIGNED NOT NULL,
+  `used_at` DATE NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_member_voucher_milestone` (`member_code`, `visit_milestone`),
+  KEY `idx_member_voucher_member` (`member_code`),
+  CONSTRAINT `fk_member_voucher_member` FOREIGN KEY (`member_code`)
+    REFERENCES `members` (`member_code`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `chk_member_voucher_percent`
+    CHECK (`voucher_percent` IN (30, 50, 70, 100))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3) Seed jumlah kunjungan agar fitur terlihat bervariasi (0..229).
+UPDATE `members` SET `total_visits` = MOD(`id` * 37, 230);
+
+-- Sabrilia dibuat sudah 120 kunjungan: membuka voucher 30% dan 50%.
+UPDATE `members` SET `total_visits` = 120 WHERE `member_code` = 'MBR-58310427';
+
+-- 4) Contoh voucher yang sudah dipakai: Sabrilia menukar voucher 30%
+--    12 hari yang lalu. Voucher 50% miliknya masih tersedia (belum dipakai).
+INSERT INTO `member_voucher_redemptions`
+  (`member_code`, `voucher_percent`, `visit_milestone`, `used_at`)
+VALUES
+  ('MBR-58310427', 30, 50, DATE_SUB(CURDATE(), INTERVAL 12 DAY))
+ON DUPLICATE KEY UPDATE
+  `visit_milestone` = VALUES(`visit_milestone`),
+  `used_at` = VALUES(`used_at`);
+
+-- Verifikasi:
+-- SELECT member_code, full_name, total_visits FROM members
+--   WHERE member_code = 'MBR-58310427';
+-- SELECT * FROM member_voucher_redemptions;

@@ -1,0 +1,38 @@
+-- =====================================================================
+-- Riwayat Follow-up (notifikasi email ke member)
+-- MySQL 8+
+-- Jalankan SEKALI setelah module/member.txt.
+--
+-- Mencatat setiap follow-up (pengingat perpanjangan / aktivasi ulang) yang
+-- dikirim admin ke email member. Diisi otomatis oleh backend tiap kali
+-- email follow-up berhasil terkirim. Ditampilkan di detail member, sejajar
+-- dengan riwayat kunjungan/voucher/perpanjangan.
+-- =====================================================================
+
+USE `pos_gym`;
+
+CREATE TABLE IF NOT EXISTS `member_follow_ups` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `member_code` VARCHAR(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `recipient_email` VARCHAR(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `subject` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `follow_up_type` VARCHAR(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'renewal',
+  `sent_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_member_follow_ups_member` (`member_code`),
+  KEY `idx_member_follow_ups_sent` (`sent_at`),
+  CONSTRAINT `fk_member_follow_ups_member` FOREIGN KEY (`member_code`)
+    REFERENCES `members` (`member_code`) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Contoh satu riwayat follow-up untuk Sabrilia (agar panel tidak kosong).
+INSERT INTO `member_follow_ups`
+  (`member_code`, `recipient_email`, `subject`, `follow_up_type`, `sent_at`)
+VALUES
+  ('MBR-58310427', 'sabriliamelda@gmail.com',
+   'Pengingat Perpanjangan Membership X-FIT', 'renewal',
+   DATE_SUB(NOW(), INTERVAL 2 DAY));
+
+-- Verifikasi:
+-- SELECT * FROM member_follow_ups ORDER BY sent_at DESC;

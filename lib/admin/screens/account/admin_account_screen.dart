@@ -336,6 +336,43 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
     });
   }
 
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Keluar dari akun?'),
+        content: const Text(
+          'Anda akan keluar dan kembali ke halaman login.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove('auth_token');
+    await preferences.remove('auth_token_type');
+    await preferences.remove('auth_expires_in');
+    await preferences.remove('auth_must_change_password');
+    await preferences.remove('auth_user_role');
+    await preferences.remove('auth_username');
+    await preferences.remove('auth_full_name');
+
+    Get.offAllNamed('/');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -346,7 +383,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
             children: [
-              const _Header(),
+              _Header(onLogout: _logout),
               const SizedBox(height: 14),
               _AccountPanel(
                 title: 'Buat Akun Kasir',
@@ -434,7 +471,9 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header();
+  const _Header({required this.onLogout});
+
+  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -445,11 +484,15 @@ class _Header extends StatelessWidget {
         color: _AdminAccountScreenState._navy,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.manage_accounts_rounded, color: Colors.white, size: 30),
-          SizedBox(width: 12),
-          Expanded(
+          const Icon(
+            Icons.manage_accounts_rounded,
+            color: Colors.white,
+            size: 30,
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -473,7 +516,48 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 10),
+          _LogoutButton(onTap: onLogout),
         ],
+      ),
+    );
+  }
+}
+
+class _LogoutButton extends StatelessWidget {
+  const _LogoutButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFDC2626),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.logout_rounded, color: Colors.white, size: 17),
+              SizedBox(width: 7),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

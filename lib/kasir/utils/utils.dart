@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:intl/intl.dart';
 
 class DateTimeUtils {
@@ -78,8 +80,8 @@ class CurrencyUtils {
 
 class StringUtils {
   static String generateMemberId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    return 'MBR-$timestamp';
+    final randomId = 10000000 + Random.secure().nextInt(90000000);
+    return 'MBR-$randomId';
   }
 
   static String generateTransactionId() {

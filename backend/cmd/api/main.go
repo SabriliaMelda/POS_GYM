@@ -44,6 +44,22 @@ func main() {
 	mux.HandleFunc("POST /api/admin/users/cashiers", authHandler.CreateCashier)
 	mux.HandleFunc("PATCH /api/admin/users/cashiers/{id}/password", authHandler.ResetCashierPassword)
 	mux.HandleFunc("DELETE /api/admin/users/cashiers/{id}", authHandler.DeleteCashier)
+	mux.HandleFunc("GET /api/admin/master/gym-packages", authHandler.ListGymPackages)
+	mux.HandleFunc("POST /api/admin/master/gym-packages", authHandler.CreateGymPackage)
+	mux.HandleFunc("PUT /api/admin/master/gym-packages/{id}", authHandler.UpdateGymPackage)
+	mux.HandleFunc("DELETE /api/admin/master/gym-packages/{id}", authHandler.DeleteGymPackage)
+	mux.HandleFunc("GET /api/admin/master/fnb", authHandler.ListFNBItems)
+	mux.HandleFunc("POST /api/admin/master/fnb", authHandler.CreateFNBItem)
+	mux.HandleFunc("PUT /api/admin/master/fnb/{id}", authHandler.UpdateFNBItem)
+	mux.HandleFunc("DELETE /api/admin/master/fnb/{id}", authHandler.DeleteFNBItem)
+	mux.HandleFunc("POST /api/admin/master/fnb/image", authHandler.UploadFNBImage)
+	mux.HandleFunc("GET /uploads/fnb/{name}", authHandler.ServeFNBImage)
+	mux.HandleFunc("GET /api/admin/master/members", authHandler.ListMembers)
+	mux.HandleFunc("DELETE /api/admin/master/members/{id}", authHandler.DeleteMember)
+	mux.HandleFunc("POST /api/admin/master/members/{id}/follow-up", authHandler.SendMemberFollowUp)
+	mux.HandleFunc("POST /api/admin/master/members/{id}/renew", authHandler.RenewMember)
+	mux.HandleFunc("GET /api/admin/transactions/gym", authHandler.ListGymTransactions)
+	mux.HandleFunc("POST /api/admin/transactions/gym", authHandler.CreateGymTransaction)
 
 	// --- [AWAL PERUBAHAN UNTUK RENDER] ---
 	// Render otomatis memberikan "Pintu" (Port) acak lewat variabel sistem "PORT".

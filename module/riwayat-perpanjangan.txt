@@ -1,0 +1,74 @@
+-- =====================================================================
+-- Riwayat Perpanjangan Membership
+-- MySQL 8+
+-- Jalankan SEKALI setelah module/member.txt (butuh tabel members & gym_packages).
+--
+-- Mencatat setiap kali masa aktif membership diperpanjang: paket yang
+-- dipakai, masa aktif lama -> baru, biaya, dan tanggal perpanjangan.
+-- Dipakai untuk panel "Riwayat Perpanjangan" di detail member, sejajar
+-- dengan riwayat kunjungan/voucher.
+-- =====================================================================
+
+USE `pos_gym`;
+
+CREATE TABLE IF NOT EXISTS `member_renewals` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `member_code` VARCHAR(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `package_code` VARCHAR(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `previous_expiry_date` DATE DEFAULT NULL,
+  `new_expiry_date` DATE NOT NULL,
+  `amount` DECIMAL(12,2) UNSIGNED NOT NULL DEFAULT 0,
+  `renewed_at` DATE NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_member_renewals` (`member_code`, `new_expiry_date`),
+  KEY `idx_member_renewals_member` (`member_code`),
+  KEY `idx_member_renewals_date` (`renewed_at`),
+  CONSTRAINT `fk_member_renewals_member` FOREIGN KEY (`member_code`)
+    REFERENCES `members` (`member_code`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_member_renewals_package` FOREIGN KEY (`package_code`)
+    REFERENCES `gym_packages` (`package_code`) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Riwayat untuk Sabrilia: dua kali perpanjangan, yang terakhir menghasilkan
+-- masa aktif sekarang (CURDATE() + 5 hari).
+INSERT INTO `member_renewals`
+  (`member_code`, `package_code`, `previous_expiry_date`, `new_expiry_date`, `amount`, `renewed_at`)
+VALUES
+  ('MBR-58310427', 'PKG-001',
+   DATE_SUB(CURDATE(), INTERVAL 55 DAY), DATE_SUB(CURDATE(), INTERVAL 25 DAY),
+   199000, DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('MBR-58310427', 'PKG-001',
+   DATE_SUB(CURDATE(), INTERVAL 25 DAY), DATE_ADD(CURDATE(), INTERVAL 5 DAY),
+   199000, DATE_SUB(CURDATE(), INTERVAL 25 DAY))
+ON DUPLICATE KEY UPDATE
+  `package_code` = VALUES(`package_code`),
+  `previous_expiry_date` = VALUES(`previous_expiry_date`),
+  `amount` = VALUES(`amount`),
+  `renewed_at` = VALUES(`renewed_at`);
+
+-- Seed satu riwayat perpanjangan untuk 30 member lain (selain Sabrilia)
+-- berdasarkan masa aktif mereka saat ini, agar daftar terlihat berisi.
+INSERT INTO `member_renewals`
+  (`member_code`, `package_code`, `previous_expiry_date`, `new_expiry_date`, `amount`, `renewed_at`)
+SELECT
+  `m`.`member_code`,
+  `m`.`package_code`,
+  DATE_SUB(`m`.`membership_expiry_date`, INTERVAL `g`.`duration_days` DAY),
+  `m`.`membership_expiry_date`,
+  `g`.`price`,
+  DATE_SUB(`m`.`membership_expiry_date`, INTERVAL `g`.`duration_days` DAY)
+FROM `members` AS `m`
+JOIN `gym_packages` AS `g` ON `g`.`package_code` = `m`.`package_code`
+WHERE `m`.`member_code` <> 'MBR-58310427'
+ORDER BY `m`.`id`
+LIMIT 30
+ON DUPLICATE KEY UPDATE
+  `package_code` = VALUES(`package_code`),
+  `previous_expiry_date` = VALUES(`previous_expiry_date`),
+  `amount` = VALUES(`amount`),
+  `renewed_at` = VALUES(`renewed_at`);
+
+-- Verifikasi:
+-- SELECT * FROM member_renewals WHERE member_code = 'MBR-58310427' ORDER BY renewed_at;
+-- SELECT COUNT(*) FROM member_renewals;

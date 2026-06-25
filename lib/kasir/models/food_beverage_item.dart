@@ -5,7 +5,9 @@ class FoodBeverageItem {
   final String description;
   final String category;
   final double price;
+  final double? memberPrice;
   final int stock;
+  final String? imagePath;
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -17,7 +19,9 @@ class FoodBeverageItem {
     required this.description,
     required this.category,
     required this.price,
+    this.memberPrice,
     required this.stock,
+    this.imagePath,
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
@@ -50,6 +54,27 @@ class FoodBeverageItem {
       isActive: map['isActive'] == 1,
       createdAt: DateTime.parse(map['createdAt']),
       updatedAt: DateTime.parse(map['updatedAt']),
+    );
+  }
+
+  factory FoodBeverageItem.fromApiJson(Map<String, dynamic> json) {
+    double numberValue(String key) => (json[key] as num?)?.toDouble() ?? 0;
+    final createdAt = DateTime.tryParse(json['created_at']?.toString() ?? '');
+    final updatedAt = DateTime.tryParse(json['updated_at']?.toString() ?? '');
+
+    return FoodBeverageItem(
+      id: (json['id'] as num?)?.toInt(),
+      itemId: json['item_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
+      memberPrice: numberValue('member_price'),
+      price: numberValue('price'),
+      stock: (json['stock'] as num?)?.toInt() ?? 0,
+      imagePath: json['image_path']?.toString(),
+      isActive: json['is_active'] == true || json['is_active'] == 1,
+      createdAt: createdAt ?? DateTime.now(),
+      updatedAt: updatedAt ?? DateTime.now(),
     );
   }
 }

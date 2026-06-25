@@ -1,21 +1,29 @@
 import 'package:get/get.dart';
+
+import '../../admin/screens/master/admin_master_data_service.dart';
 import '../models/index.dart';
-import '../services/mock_data_service.dart';
 
+/// Controller transaksi gym untuk kasir. Sumber data = backend.
 class GymTransactionController extends GetxController {
-  final MockDataService _mockData = MockDataService.instance;
+  GymTransactionController({AdminMasterDataRepository? repository})
+    : _repository = repository ?? AdminMasterDataRepository();
 
-  var transactions = <GymTransaction>[].obs;
-  var filteredTransactions = <GymTransaction>[].obs;
-  var packages = <GymPackage>[].obs;
-  var members = <Member>[].obs;
-  var selectedTransaction = Rx<GymTransaction?>(null);
-  var isLoading = false.obs;
-  var selectedMember = Rx<Member?>(null);
-  var selectedPackage = Rx<GymPackage?>(null);
-  var customerType = 'new'.obs;
+  final AdminMasterDataRepository _repository;
+
+  /// Biaya pendaftaran member baru (sinkron dengan backend).
+  static const double newMemberAdminFee = 100000;
+
+  final transactions = <GymTransaction>[].obs;
+  final filteredTransactions = <GymTransaction>[].obs;
+  final packages = <GymPackage>[].obs;
+  final members = <Member>[].obs;
+  final selectedTransaction = Rx<GymTransaction?>(null);
+  final isLoading = false.obs;
+  final selectedMember = Rx<Member?>(null);
+  final selectedPackage = Rx<GymPackage?>(null);
+  final customerType = 'new'.obs;
   // POS hanya menerima QRIS dan Debit (via mesin EDC). Tidak menerima tunai.
-  var paymentMethod = 'QRIS'.obs;
+  final paymentMethod = 'QRIS'.obs;
 
   @override
   void onInit() {
@@ -28,71 +36,38 @@ class GymTransactionController extends GetxController {
   Future<void> loadTransactions() async {
     try {
       isLoading.value = true;
-      final loadedTransactions = List<GymTransaction>.from(
-        _mockData.gymTransactions,
-      );
-      transactions.value = loadedTransactions;
-      filteredTransactions.value = loadedTransactions;
+      final loaded = await _repository.listGymTransactions();
+      transactions.value = loaded;
+      filteredTransactions.value = loaded;
     } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal memuat transaksi: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat transaksi: ${_msg(e)}');
     } finally {
       isLoading.value = false;
     }
-  }
-
-  Future<void> createTransaction(GymTransaction transaction) async {
-    try {
-      isLoading.value = true;
-      _mockData.addGymTransaction(transaction);
-      await loadTransactions();
-      Get.snackbar('Berhasil', 'Transaksi berhasil dibuat');
-    } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal membuat transaksi: $e');
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  Future<void> updateTransaction(GymTransaction transaction) async {
-    try {
-      isLoading.value = true;
-      _mockData.updateGymTransaction(transaction);
-      await loadTransactions();
-      Get.snackbar('Berhasil', 'Transaksi berhasil diperbarui');
-    } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal memperbarui transaksi: $e');
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  Future<List<Member>> loadMembers() async {
-    try {
-      return _mockData.getActiveMembers();
-    } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal memuat data member: $e');
-      return [];
-    }
-  }
-
-  void loadMemberOptions() {
-    members.value = _mockData.searchMembers('');
   }
 
   Future<List<GymPackage>> loadGymPackages() async {
     try {
-      final loadedPackages = _mockData.getActiveGymPackages();
-      packages.value = loadedPackages;
-      return loadedPackages;
+      final loaded = (await _repository.listGymPackages())
+          .where((p) => p.isActive)
+          .toList();
+      packages.value = loaded;
+      return loaded;
     } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal memuat paket gym: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat paket gym: ${_msg(e)}');
       return [];
     }
   }
 
-  void selectMember(Member member) {
-    selectedMember.value = member;
+  Future<void> loadMemberOptions() async {
+    try {
+      members.value = await _repository.listMembers();
+    } catch (e) {
+      Get.snackbar('Kesalahan', 'Gagal memuat data member: ${_msg(e)}');
+    }
   }
+
+  void selectMember(Member member) => selectedMember.value = member;
 
   void selectPackage(GymPackage package) {
     selectedPackage.value = package;
@@ -107,19 +82,76 @@ class GymTransactionController extends GetxController {
   void setCustomerType(String type) {
     customerType.value = type;
     selectedMember.value = null;
-
     if (type == 'guest') {
-      selectedPackage.value = packages.firstWhereOrNull(
-        (package) => package.packageId == 'PKG-DAILY',
+      selectedPackage.value = _firstPackageWhere(
+        (p) => p.packageId == 'PKG-DAILY',
       );
     } else if (selectedPackage.value?.packageId == 'PKG-DAILY') {
       selectedPackage.value = null;
     }
   }
 
-  double get adminFee => customerType.value == 'new' ? 100000 : 0;
+  /// Menyiapkan layar untuk perpanjangan member tertentu (dipanggil dari
+  /// halaman member saat menekan "Perpanjang").
+  Future<void> startRenewal(Member member) async {
+    customerType.value = 'member';
+    selectedMember.value = member;
+    paymentMethod.value = 'QRIS';
+    if (packages.isEmpty) await loadGymPackages();
+    selectedPackage.value =
+        _firstPackageWhere((p) => p.packageId == member.gymPackageId) ??
+        (packages.isNotEmpty ? packages.first : null);
+  }
+
+  double get adminFee =>
+      customerType.value == 'new' ? newMemberAdminFee : 0;
 
   double get transactionTotal => (selectedPackage.value?.price ?? 0) + adminFee;
+
+  /// Memproses pembayaran ke backend.
+  /// Mengembalikan pesan sukses, atau null jika gagal/validasi tidak lolos.
+  Future<String?> processPayment() async {
+    final package = selectedPackage.value;
+    if (package == null) {
+      Get.snackbar('Paket Belum Dipilih', 'Pilih paket terlebih dahulu.');
+      return null;
+    }
+    final type = customerType.value;
+    if (type == 'member' && selectedMember.value == null) {
+      Get.snackbar(
+        'Member Belum Dipilih',
+        'Pilih member yang akan diperpanjang.',
+      );
+      return null;
+    }
+    try {
+      isLoading.value = true;
+      final notes = switch (type) {
+        'new' => 'Pembayaran member baru | Data diri via QR registrasi kasir',
+        'guest' => 'Kunjungan harian non-member',
+        _ => 'Perpanjangan member',
+      };
+      await _repository.createGymTransaction(
+        customerType: type,
+        memberId: type == 'member' ? selectedMember.value!.id : null,
+        packageCode: package.packageId,
+        paymentMethod: paymentMethod.value,
+        notes: notes,
+      );
+      await loadTransactions();
+      if (type == 'member') await loadMemberOptions();
+      return switch (type) {
+        'new' => 'Pembayaran diterima. Arahkan pelanggan scan QR registrasi.',
+        'guest' => 'Pembayaran daily pass berhasil.',
+        _ => 'Perpanjangan ${selectedMember.value?.name ?? 'member'} berhasil.',
+      };
+    } catch (e) {
+      Get.snackbar('Gagal', 'Pembayaran gagal: ${_msg(e)}');
+      return null;
+    } finally {
+      isLoading.value = false;
+    }
+  }
 
   void clearTransaction() {
     selectedMember.value = null;
@@ -128,26 +160,24 @@ class GymTransactionController extends GetxController {
     paymentMethod.value = 'QRIS';
   }
 
-  Future<double> getTotalRevenue() async {
-    try {
-      return _mockData.totalGymRevenue;
-    } catch (e) {
-      return 0;
-    }
+  void filterTransactionsByDateRange(DateTime startDate, DateTime endDate) {
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+    filteredTransactions.value = transactions
+        .where(
+          (t) =>
+              !t.transactionDate.isBefore(start) &&
+              !t.transactionDate.isAfter(end),
+        )
+        .toList();
   }
 
-  void filterTransactionsByDateRange(
-    DateTime startDate,
-    DateTime endDate,
-  ) async {
-    try {
-      isLoading.value = true;
-      final filtered = _mockData.getGymTransactionsInRange(startDate, endDate);
-      filteredTransactions.value = filtered;
-    } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal memfilter transaksi: $e');
-    } finally {
-      isLoading.value = false;
+  GymPackage? _firstPackageWhere(bool Function(GymPackage) test) {
+    for (final p in packages) {
+      if (test(p)) return p;
     }
+    return null;
   }
+
+  String _msg(Object e) => e.toString().replaceFirst('Exception: ', '');
 }

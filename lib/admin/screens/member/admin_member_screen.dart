@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../kasir/models/gym_package.dart';
 import '../../../kasir/models/member.dart';
-import '../../../kasir/services/mock_data_service.dart';
+import '../../../kasir/models/member_voucher.dart';
+import '../../../kasir/utils/utils.dart';
+import '../master/admin_master_data_service.dart';
 
-enum _MemberFilter { all, active, renewalDue, expired, inactive }
+enum _MemberFilter { all, active, renewalDue, expired }
 
 class AdminMemberScreen extends StatefulWidget {
   const AdminMemberScreen({super.key});
@@ -23,10 +26,20 @@ class AdminMemberScreen extends StatefulWidget {
 }
 
 class _AdminMemberScreenState extends State<AdminMemberScreen> {
-  final MockDataService _service = MockDataService.instance;
+  final AdminMasterDataRepository _repository = AdminMasterDataRepository();
   final TextEditingController _searchController = TextEditingController();
   _MemberFilter _selectedFilter = _MemberFilter.all;
   String _searchQuery = '';
+  List<Member> _members = const [];
+  List<GymPackage> _packages = const [];
+  bool _isLoading = true;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
 
   @override
   void dispose() {
@@ -34,128 +47,158 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
     super.dispose();
   }
 
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final results = await Future.wait([
+        _repository.listMembers(),
+        _repository.listGymPackages(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _members = results[0] as List<Member>;
+        _packages = results[1] as List<GymPackage>;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadError = error.toString());
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AdminMemberScreen._background,
+      body: SafeArea(child: _buildBody()),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_loadError != null) {
+      return RefreshIndicator(
+        onRefresh: _loadData,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          children: [
+            _MemberLoadError(message: _loadError!, onRetry: _loadData),
+          ],
+        ),
+      );
+    }
+
     final members = List<Member>.from(
-      _service.members,
+      _members,
     )..sort((a, b) => a.membershipExpiryDate.compareTo(b.membershipExpiryDate));
     final activeMembers = members.where(_isActiveMember).toList();
     final renewalDueMembers = members.where(_isRenewalDueMember).toList();
     final expiredMembers = members.where((member) => member.isExpired).toList();
-    final inactiveMembers = members
-        .where((member) => !member.isActive)
-        .toList();
-    final monitoringMembers = [
-      ...expiredMembers,
-      ...renewalDueMembers.where((member) => !member.isExpired),
-    ];
+    final monitoringMembers = renewalDueMembers;
     final filteredMembers = _filteredMembers(members);
 
-    return Scaffold(
-      backgroundColor: AdminMemberScreen._background,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 900;
-            return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _AdminHeader(
-                    title: 'Kelola Member',
-                    subtitle:
-                        'Pantau data member hasil form pendaftaran dan kelola daftar member.',
-                    icon: Icons.groups_rounded,
-                  ),
-                  const SizedBox(height: 14),
-                  _SummaryGrid(
-                    isWide: isWide,
-                    items: [
-                      _SummaryItem(
-                        title: 'Total Member',
-                        value: members.length.toString(),
-                        icon: Icons.badge_rounded,
-                      ),
-                      _SummaryItem(
-                        title: 'Member Aktif',
-                        value: activeMembers.length.toString(),
-                        icon: Icons.verified_user_rounded,
-                      ),
-                      _SummaryItem(
-                        title: 'Perlu Perpanjangan',
-                        value: renewalDueMembers.length.toString(),
-                        icon: Icons.event_busy_rounded,
-                      ),
-                      _SummaryItem(
-                        title: 'Kadaluwarsa',
-                        value: expiredMembers.length.toString(),
-                        icon: Icons.person_off_rounded,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _RenewalMonitorPanel(
-                    members: monitoringMembers.take(4).toList(),
-                    totalCount: monitoringMembers.length,
-                    onShowRenewalDue: () {
-                      setState(
-                        () => _selectedFilter = _MemberFilter.renewalDue,
-                      );
-                    },
-                    onShowExpired: () {
-                      setState(() => _selectedFilter = _MemberFilter.expired);
-                    },
-                    onFollowUp: _showFollowUpNotificationDialog,
-                  ),
-                  const SizedBox(height: 14),
-                  _MemberToolbar(
-                    searchController: _searchController,
-                    selectedFilter: _selectedFilter,
-                    counts: {
-                      _MemberFilter.all: members.length,
-                      _MemberFilter.active: activeMembers.length,
-                      _MemberFilter.renewalDue: renewalDueMembers.length,
-                      _MemberFilter.expired: expiredMembers.length,
-                      _MemberFilter.inactive: inactiveMembers.length,
-                    },
-                    onSearchChanged: (value) {
-                      setState(() => _searchQuery = value);
-                    },
-                    onFilterChanged: (filter) {
-                      setState(() => _selectedFilter = filter);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  _Panel(
-                    title: 'Daftar Member',
-                    helper:
-                        '${filteredMembers.length} data ditampilkan dari ${members.length} member.',
-                    child: filteredMembers.isEmpty
-                        ? const _EmptyMemberState()
-                        : Column(
-                            children: [
-                              if (isWide) const _MemberListHeader(),
-                              ...filteredMembers.map((member) {
-                                return _MemberRowTile(
-                                  member: member,
-                                  packageName: _packageName(
-                                    member.gymPackageId,
-                                  ),
-                                  isWide: isWide,
-                                  onOpenDetail: () =>
-                                      _openMemberDetailPage(member),
-                                  onDelete: () => _confirmDeleteMember(member),
-                                );
-                              }),
-                            ],
-                          ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 900;
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _AdminHeader(
+                  title: 'Kelola Member',
+                  subtitle:
+                      'Pantau data member hasil form pendaftaran dan kelola daftar member.',
+                  icon: Icons.groups_rounded,
+                ),
+                const SizedBox(height: 14),
+                _SummaryGrid(
+                  isWide: isWide,
+                  items: [
+                    _SummaryItem(
+                      title: 'Total Member',
+                      value: members.length.toString(),
+                      icon: Icons.badge_rounded,
+                    ),
+                    _SummaryItem(
+                      title: 'Member Aktif',
+                      value: activeMembers.length.toString(),
+                      icon: Icons.verified_user_rounded,
+                    ),
+                    _SummaryItem(
+                      title: 'Perlu Perpanjangan',
+                      value: renewalDueMembers.length.toString(),
+                      icon: Icons.event_busy_rounded,
+                    ),
+                    _SummaryItem(
+                      title: 'Kadaluwarsa',
+                      value: expiredMembers.length.toString(),
+                      icon: Icons.person_off_rounded,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _RenewalMonitorPanel(
+                  members: monitoringMembers.take(4).toList(),
+                  totalCount: monitoringMembers.length,
+                  onShowRenewalDue: () {
+                    setState(() => _selectedFilter = _MemberFilter.renewalDue);
+                  },
+                  onFollowUp: _showFollowUpNotificationDialog,
+                ),
+                const SizedBox(height: 14),
+                _MemberToolbar(
+                  searchController: _searchController,
+                  selectedFilter: _selectedFilter,
+                  counts: {
+                    _MemberFilter.all: members.length,
+                    _MemberFilter.active: activeMembers.length,
+                    _MemberFilter.renewalDue: renewalDueMembers.length,
+                    _MemberFilter.expired: expiredMembers.length,
+                  },
+                  onSearchChanged: (value) {
+                    setState(() => _searchQuery = value);
+                  },
+                  onFilterChanged: (filter) {
+                    setState(() => _selectedFilter = filter);
+                  },
+                ),
+                const SizedBox(height: 14),
+                _Panel(
+                  title: 'Daftar Member',
+                  helper:
+                      '${filteredMembers.length} data ditampilkan dari ${members.length} member.',
+                  child: filteredMembers.isEmpty
+                      ? const _EmptyMemberState()
+                      : Column(
+                          children: [
+                            if (isWide) const _MemberListHeader(),
+                            ...filteredMembers.map((member) {
+                              return _MemberRowTile(
+                                member: member,
+                                packageName: _packageName(member.gymPackageId),
+                                isWide: isWide,
+                                onOpenDetail: () =>
+                                    _openMemberDetailPage(member),
+                                onDelete: () => _confirmDeleteMember(member),
+                              );
+                            }),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -168,7 +211,6 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
         _MemberFilter.active => _isActiveMember(member),
         _MemberFilter.renewalDue => _isRenewalDueMember(member),
         _MemberFilter.expired => member.isExpired,
-        _MemberFilter.inactive => !member.isActive,
       };
       if (!matchesFilter) return false;
       if (query.isEmpty) return true;
@@ -180,7 +222,7 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
   }
 
   bool _isActiveMember(Member member) {
-    return member.isActive && !member.isExpired;
+    return !member.isExpired;
   }
 
   bool _isRenewalDueMember(Member member) {
@@ -188,7 +230,7 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
   }
 
   String _packageName(String packageId) {
-    for (final package in _service.gymPackages) {
+    for (final package in _packages) {
       if (package.packageId == packageId) return package.name;
     }
     return packageId;
@@ -249,15 +291,33 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
       },
     );
 
-    if (sent == true && mounted) {
-      _showSnackBar(
-        'Notifikasi Gmail follow-up disiapkan untuk ${member.email}.',
+    if (sent != true || !mounted) return;
+
+    final id = member.id;
+    if (id == null) {
+      _showSnackBar('ID member tidak valid.');
+      return;
+    }
+
+    _showSnackBar('Mengirim follow-up ke ${member.email}...');
+    try {
+      final message = await _repository.sendMemberFollowUp(
+        id,
+        subject: _followUpNotificationSubject(member),
+        message: _followUpNotificationMessage(member),
+        type: member.isExpired ? 'expired' : 'renewal',
       );
+      if (!mounted) return;
+      _showSnackBar(message);
+      await _loadData();
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar(error.toString());
     }
   }
 
   Future<void> _confirmDeleteMember(Member member) async {
-    final deleted = await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -274,11 +334,7 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: AdminMemberScreen._red,
               ),
-              onPressed: () {
-                final id = member.id;
-                if (id != null) _service.deleteMember(id);
-                Navigator.pop(context, true);
-              },
+              onPressed: () => Navigator.pop(context, true),
               icon: const Icon(Icons.delete_rounded),
               label: const Text('Hapus'),
             ),
@@ -287,9 +343,24 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
       },
     );
 
-    if (deleted == true && mounted) {
-      setState(() {});
+    if (confirmed != true) return;
+
+    final id = member.id;
+    if (id == null) {
+      _showSnackBar('ID member tidak valid.');
+      return;
+    }
+
+    try {
+      await _repository.deleteMember(id);
+      if (!mounted) return;
+      setState(() {
+        _members = _members.where((m) => m.id != id).toList();
+      });
       _showSnackBar('Data member berhasil dihapus.');
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar(error.toString());
     }
   }
 
@@ -410,6 +481,12 @@ class _AdminMemberDetailPage extends StatelessWidget {
                       value: _formatDate(member.registrationDate),
                       color: const Color(0xFF2563EB),
                     ),
+                    _DetailMetricCard(
+                      icon: Icons.directions_run_rounded,
+                      label: 'Total Kunjungan',
+                      value: '${member.totalVisits}x',
+                      color: const Color(0xFF0F766E),
+                    ),
                   ];
 
                   return GridView.builder(
@@ -417,7 +494,7 @@ class _AdminMemberDetailPage extends StatelessWidget {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: isWide ? 3 : 1,
+                      crossAxisCount: isWide ? 4 : 2,
                       crossAxisSpacing: 10,
                       mainAxisSpacing: 10,
                       mainAxisExtent: 84,
@@ -534,8 +611,488 @@ class _AdminMemberDetailPage extends StatelessWidget {
                   );
                 },
               ),
+              const SizedBox(height: 12),
+              _VoucherProgressPanel(member: member),
+              const SizedBox(height: 12),
+              _RenewalHistoryPanel(member: member),
+              const SizedBox(height: 12),
+              _FollowUpHistoryPanel(member: member),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FollowUpHistoryPanel extends StatelessWidget {
+  const _FollowUpHistoryPanel({required this.member});
+
+  final Member member;
+
+  static const Color _purple = Color(0xFF7C3AED);
+
+  @override
+  Widget build(BuildContext context) {
+    final followUps = member.followUps;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AdminMemberScreen._surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AdminMemberScreen._border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: _purple,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Riwayat Follow-up',
+                  style: TextStyle(
+                    color: AdminMemberScreen._text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            followUps.isEmpty
+                ? 'Belum ada follow-up yang dikirim.'
+                : '${followUps.length}x follow-up dikirim ke ${member.email}.',
+            style: const TextStyle(
+              color: AdminMemberScreen._muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (followUps.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ...followUps.map((followUp) => _FollowUpRow(followUp: followUp)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FollowUpRow extends StatelessWidget {
+  const _FollowUpRow({required this.followUp});
+
+  final MemberFollowUp followUp;
+
+  @override
+  Widget build(BuildContext context) {
+    final isExpired = followUp.type == 'expired';
+    final typeLabel = isExpired ? 'Aktivasi ulang' : 'Pengingat perpanjangan';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AdminMemberScreen._border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.mark_email_read_rounded,
+                color: Color(0xFF7C3AED),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    followUp.subject,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AdminMemberScreen._text,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    '$typeLabel - ${_formatDateTime(followUp.sentAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AdminMemberScreen._muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RenewalHistoryPanel extends StatelessWidget {
+  const _RenewalHistoryPanel({required this.member});
+
+  final Member member;
+
+  static const Color _blue = Color(0xFF2563EB);
+
+  @override
+  Widget build(BuildContext context) {
+    final renewals = member.renewals;
+    final totalSpent = renewals.fold<double>(0, (sum, r) => sum + r.amount);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AdminMemberScreen._surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AdminMemberScreen._border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: _blue,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Riwayat Perpanjangan',
+                  style: TextStyle(
+                    color: AdminMemberScreen._text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            renewals.isEmpty
+                ? 'Belum ada riwayat perpanjangan.'
+                : '${renewals.length}x perpanjangan - total ${CurrencyUtils.formatCurrencySimple(totalSpent)}.',
+            style: const TextStyle(
+              color: AdminMemberScreen._muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (renewals.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ...renewals.map((renewal) => _RenewalRow(renewal: renewal)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RenewalRow extends StatelessWidget {
+  const _RenewalRow({required this.renewal});
+
+  final MemberRenewal renewal;
+
+  @override
+  Widget build(BuildContext context) {
+    final period = renewal.previousExpiryDate == null
+        ? 'Sampai ${_formatDate(renewal.newExpiryDate)}'
+        : '${_formatDate(renewal.previousExpiryDate!)} -> ${_formatDate(renewal.newExpiryDate)}';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AdminMemberScreen._border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.autorenew_rounded,
+                color: Color(0xFF2563EB),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    renewal.packageName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AdminMemberScreen._text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    period,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AdminMemberScreen._muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  CurrencyUtils.formatCurrencySimple(renewal.amount),
+                  style: const TextStyle(
+                    color: AdminMemberScreen._text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDate(renewal.renewedAt),
+                  style: const TextStyle(
+                    color: AdminMemberScreen._muted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VoucherProgressPanel extends StatelessWidget {
+  const _VoucherProgressPanel({required this.member});
+
+  final Member member;
+
+  static const Color _teal = Color(0xFF0F766E);
+
+  @override
+  Widget build(BuildContext context) {
+    final statuses = memberVoucherStatuses(member);
+    final remaining = visitsToNextTier(member.totalVisits);
+    final nextPercent = nextVoucherTier(member.totalVisits).percent;
+    final subtitle =
+        '${member.totalVisits}x kunjungan - $remaining lagi menuju voucher $nextPercent% (berulang tiap ${kVisitsPerVoucher}x).';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AdminMemberScreen._surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AdminMemberScreen._border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: _teal,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Voucher F&B (Reward Kunjungan)',
+                  style: TextStyle(
+                    color: AdminMemberScreen._text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: AdminMemberScreen._muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...statuses.map((status) => _VoucherTierRow(status: status)),
+        ],
+      ),
+    );
+  }
+}
+
+class _VoucherTierRow extends StatelessWidget {
+  const _VoucherTierRow({required this.status});
+
+  final MemberVoucherStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    final IconData icon;
+    final String label;
+    if (status.used) {
+      color = AdminMemberScreen._muted;
+      icon = Icons.check_circle_rounded;
+      label = 'Dipakai ${_formatDate(status.usedAt!)}';
+    } else if (status.available) {
+      color = AdminMemberScreen._green;
+      icon = Icons.redeem_rounded;
+      label = 'Bisa ditukar';
+    } else {
+      color = AdminMemberScreen._muted;
+      icon = Icons.lock_outline_rounded;
+      label = 'Terkunci';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: status.available
+                ? AdminMemberScreen._green.withValues(alpha: 0.3)
+                : AdminMemberScreen._border,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AdminMemberScreen._navy.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '${status.percent}%',
+                style: const TextStyle(
+                  color: AdminMemberScreen._navy,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Voucher diskon ${status.percent}%',
+                    style: const TextStyle(
+                      color: AdminMemberScreen._text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    'Terbuka pada ${status.visits}x kunjungan',
+                    style: const TextStyle(
+                      color: AdminMemberScreen._muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: color.withValues(alpha: 0.24)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 14, color: color),
+                  const SizedBox(width: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -886,14 +1443,12 @@ class _RenewalMonitorPanel extends StatelessWidget {
     required this.members,
     required this.totalCount,
     required this.onShowRenewalDue,
-    required this.onShowExpired,
     required this.onFollowUp,
   });
 
   final List<Member> members;
   final int totalCount;
   final VoidCallback onShowRenewalDue;
-  final VoidCallback onShowExpired;
   final ValueChanged<Member> onFollowUp;
 
   @override
@@ -962,12 +1517,7 @@ class _RenewalMonitorPanel extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: onShowRenewalDue,
                     icon: const Icon(Icons.event_busy_rounded, size: 18),
-                    label: const Text('Hampir Habis'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onShowExpired,
-                    icon: const Icon(Icons.person_off_rounded, size: 18),
-                    label: const Text('Kadaluwarsa'),
+                    label: const Text('Perlu Perpanjangan'),
                   ),
                 ],
               );
@@ -1155,7 +1705,6 @@ class _MemberToolbar extends StatelessWidget {
       _MemberFilter.active => 'Aktif',
       _MemberFilter.renewalDue => 'Perlu Perpanjangan',
       _MemberFilter.expired => 'Kadaluwarsa',
-      _MemberFilter.inactive => 'Nonaktif',
     };
   }
 
@@ -1165,7 +1714,6 @@ class _MemberToolbar extends StatelessWidget {
       _MemberFilter.active => Icons.verified_user_rounded,
       _MemberFilter.renewalDue => Icons.event_busy_rounded,
       _MemberFilter.expired => Icons.person_off_rounded,
-      _MemberFilter.inactive => Icons.block_rounded,
     };
   }
 }
@@ -1376,12 +1924,22 @@ class _MemberIdentity extends StatelessWidget {
                 ),
               ),
               Text(
-                '${member.memberId} - ${member.phoneNumber}',
+                member.memberId,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AdminMemberScreen._muted,
                   fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                member.phoneNumber,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AdminMemberScreen._muted,
+                  fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1706,6 +2264,60 @@ class _EmptyMemberState extends StatelessWidget {
   }
 }
 
+class _MemberLoadError extends StatelessWidget {
+  const _MemberLoadError({required this.message, required this.onRetry});
+
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+      decoration: BoxDecoration(
+        color: AdminMemberScreen._surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AdminMemberScreen._border),
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.cloud_off_rounded,
+            color: AdminMemberScreen._red,
+            size: 38,
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Gagal memuat data member',
+            style: TextStyle(
+              color: AdminMemberScreen._text,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AdminMemberScreen._muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Coba Lagi'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SummaryItem {
   const _SummaryItem({
     required this.title,
@@ -1731,13 +2343,6 @@ class _MemberStatus {
 }
 
 _MemberStatus _memberStatus(Member member) {
-  if (!member.isActive) {
-    return const _MemberStatus(
-      label: 'Nonaktif',
-      icon: Icons.block_rounded,
-      color: AdminMemberScreen._red,
-    );
-  }
   if (member.isExpired) {
     return const _MemberStatus(
       label: 'Kadaluwarsa',
@@ -1760,18 +2365,54 @@ _MemberStatus _memberStatus(Member member) {
 }
 
 String _followUpNotificationSubject(Member member) {
-  if (member.isExpired || !member.isActive) {
-    return 'Informasi Aktivasi Ulang Membership X-FIT';
+  if (member.isExpired) {
+    return 'Informasi Aktivasi Ulang Membership X-FIT - ${member.memberId}';
   }
-  return 'Pengingat Perpanjangan Membership X-FIT';
+  return 'Pengingat Perpanjangan Membership X-FIT - ${member.memberId}';
 }
 
 String _followUpNotificationMessage(Member member) {
-  if (member.isExpired || !member.isActive) {
-    return 'Halo ${member.name}, masa aktif membership X-FIT Anda telah kadaluwarsa sejak ${_formatDate(member.membershipExpiryDate)}. Untuk mengaktifkan kembali membership, silakan melakukan pembayaran perpanjangan di kasir gym. Karena status membership sudah kadaluwarsa, proses aktivasi ulang akan mengikuti biaya paket dan biaya admin yang berlaku.';
+  if (member.isExpired) {
+    return '''Yth. ${member.name},
+
+Kami dari X-FIT ingin menginformasikan bahwa masa aktif membership Anda dengan ID ${member.memberId} telah berakhir pada ${_formatDate(member.membershipExpiryDate)}.
+
+Agar Anda dapat kembali menikmati fasilitas latihan dan layanan X-FIT, silakan melakukan aktivasi ulang membership dengan memilih paket yang sesuai. Proses aktivasi ulang dapat dilakukan langsung melalui kasir gym. Tim kami siap membantu memberikan informasi mengenai pilihan paket, biaya, dan proses pembayaran yang tersedia.
+
+Untuk informasi lebih lanjut atau konfirmasi aktivasi ulang, silakan menghubungi Admin X-FIT melalui WhatsApp:
+0838-5617-2512
+https://wa.me/6283856172512
+
+Mohon abaikan pesan ini apabila Anda telah melakukan aktivasi ulang membership.
+
+Terima kasih atas kepercayaan Anda menjadi bagian dari X-FIT. Kami menantikan kehadiran Anda kembali.
+
+Hormat kami,
+Admin X-FIT
+
+Pesan ini dikirim secara otomatis. Mohon tidak membalas email ini.''';
   }
 
-  return 'Halo ${member.name}, masa aktif membership X-FIT Anda akan habis pada ${_formatDate(member.membershipExpiryDate)}. Silakan lakukan perpanjangan di kasir gym sebelum tanggal tersebut agar akses latihan tetap aktif.';
+  return '''Yth. ${member.name},
+
+Kami dari X-FIT ingin mengingatkan bahwa masa aktif membership Anda dengan ID ${member.memberId} akan berakhir pada ${_formatDate(member.membershipExpiryDate)}.
+
+Untuk memastikan akses latihan dan penggunaan fasilitas X-FIT tetap berjalan tanpa terputus, kami menyarankan Anda melakukan perpanjangan sebelum tanggal tersebut. Perpanjangan dapat dilakukan langsung melalui kasir gym dengan memilih paket membership yang sesuai dengan kebutuhan Anda.
+
+Tim kami siap membantu memberikan informasi mengenai pilihan paket, masa berlaku, biaya, serta metode pembayaran yang tersedia. Dengan melakukan perpanjangan lebih awal, Anda dapat tetap berlatih dengan nyaman tanpa mengalami kendala pada akses membership.
+
+Untuk informasi lebih lanjut atau konfirmasi perpanjangan, silakan menghubungi Admin X-FIT melalui WhatsApp:
+0838-5617-2512
+https://wa.me/6283856172512
+
+Mohon abaikan pesan ini apabila Anda telah melakukan perpanjangan membership.
+
+Terima kasih atas kepercayaan Anda menjadi bagian dari X-FIT. Kami berharap dapat terus mendukung perjalanan kebugaran Anda.
+
+Hormat kami,
+Admin X-FIT
+
+Pesan ini dikirim secara otomatis. Mohon tidak membalas email ini.''';
 }
 
 String _expiryDetail(Member member) {
@@ -1792,4 +2433,10 @@ String _formatDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day/$month/${date.year}';
+}
+
+String _formatDateTime(DateTime date) {
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return '${_formatDate(date)} $hour:$minute';
 }

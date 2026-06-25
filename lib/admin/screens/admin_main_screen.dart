@@ -4,7 +4,7 @@ import 'account/admin_account_screen.dart';
 import 'dashboard/admin_dashboard_screen.dart';
 import 'master/admin_master_data_screen.dart';
 import 'member/admin_member_screen.dart';
-import 'operations/admin_operations_screen.dart';
+import 'riwayat/admin_riwayat_screen.dart';
 import 'reports/reports_screen.dart';
 
 class AdminMainScreen extends StatefulWidget {
@@ -21,7 +21,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     AdminDashboardScreen(),
     AdminMemberScreen(),
     AdminMasterDataScreen(),
-    AdminOperationsScreen(),
+    AdminRiwayatScreen(),
     ReportsScreen(),
     AdminAccountScreen(),
   ];
@@ -49,8 +49,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             label: 'Master',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.admin_panel_settings_rounded),
-            label: 'Operasi',
+            icon: Icon(Icons.history_rounded),
+            label: 'Riwayat',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.assessment_rounded),
