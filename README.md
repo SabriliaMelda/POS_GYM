@@ -1,18 +1,28 @@
-# pos_gym
+# POS_GYM — X-FIT Digital Indonesia
 
-A new Flutter project.
+Sistem Point of Sale gym (layanan gym, F&B, member, absensi, riwayat).
 
-## Getting Started
+## Struktur
 
-This project is a starting point for a Flutter application.
+| Folder | Isi |
+|--------|-----|
+| `frontend/` | Aplikasi **Flutter** (kasir & admin). Jalankan dari sini. |
+| `backend/`  | REST API **Go** + MySQL. |
+| `module/`   | Skrip **SQL** (`*.txt`, `pos_gym.sql`) & dokumentasi/skripsi. |
 
-A few resources to get you started if this is your first Flutter project:
+## Menjalankan
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+**Backend** (butuh MySQL `pos_gym`, atur `backend/.env`):
+```bash
+cd backend
+go run ./cmd/api
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-"# POS_GYM" 
+**Frontend** (atur `frontend/.env` → `API_BASE_URL`):
+```bash
+cd frontend
+flutter pub get
+flutter run
+```
+
+Skema database & langkah setup ada di folder `module/`.
