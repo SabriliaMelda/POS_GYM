@@ -84,10 +84,7 @@ class _AttendanceViewState extends State<_AttendanceView> {
         ),
         actions: [
           IconButton(
-            onPressed: () {
-              _controller.loadAttendance();
-              _controller.loadTodayAttendance();
-            },
+            onPressed: _controller.loadAttendance,
             tooltip: 'Muat ulang',
             icon: const Icon(Icons.refresh_rounded),
           ),
@@ -574,22 +571,12 @@ class _AttendanceViewState extends State<_AttendanceView> {
   ({String label, IconData icon, Color color}) _accessMethod(
     Attendance attendance,
   ) {
-    final credential = attendance.rfidCardNumber ?? '';
-    if (credential.startsWith('BARCODE:')) {
-      return (
-        label: 'Barcode',
-        icon: Icons.qr_code_2_rounded,
-        color: const Color(0xFF7C3AED),
-      );
-    }
-    if (credential.startsWith('DAILY:')) {
-      return (
-        label: 'Kasir / Daily Pass',
-        icon: Icons.door_front_door_outlined,
-        color: const Color(0xFFB7791F),
-      );
-    }
-    return (label: 'RFID', icon: Icons.contactless_rounded, color: _primary);
+    // Absensi kini hanya via scan barcode.
+    return (
+      label: 'Barcode',
+      icon: Icons.qr_code_2_rounded,
+      color: const Color(0xFF7C3AED),
+    );
   }
 }
 

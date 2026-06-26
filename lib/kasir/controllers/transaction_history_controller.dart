@@ -1,14 +1,21 @@
 import 'package:get/get.dart';
+
+import '../../admin/screens/master/admin_master_data_service.dart';
 import '../models/index.dart';
-import '../services/mock_data_service.dart';
 
+/// Controller riwayat transaksi kasir. Sumber data = backend.
+///
+/// Memuat transaksi gym, F&B, dan kunjungan (absensi) dari backend.
 class TransactionHistoryController extends GetxController {
-  final MockDataService _mockData = MockDataService.instance;
+  TransactionHistoryController({AdminMasterDataRepository? repository})
+    : _repository = repository ?? AdminMasterDataRepository();
 
-  var gymTransactions = <GymTransaction>[].obs;
-  var fbTransactions = <FoodBeverageTransaction>[].obs;
-  var attendanceRecords = <Attendance>[].obs;
-  var isLoading = false.obs;
+  final AdminMasterDataRepository _repository;
+
+  final gymTransactions = <GymTransaction>[].obs;
+  final fbTransactions = <FoodBeverageTransaction>[].obs;
+  final attendanceRecords = <Attendance>[].obs;
+  final isLoading = false.obs;
 
   @override
   void onInit() {
@@ -19,88 +26,21 @@ class TransactionHistoryController extends GetxController {
   Future<void> loadTransactions() async {
     try {
       isLoading.value = true;
-      final gymTrans = List<GymTransaction>.from(_mockData.gymTransactions)
-        ..sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
-      final fbTrans = List<FoodBeverageTransaction>.from(
-        _mockData.foodBeverageTransactions,
-      )..sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
-      final attendance = List<Attendance>.from(_mockData.attendanceRecords)
-        ..sort((a, b) => b.attendanceDate.compareTo(a.attendanceDate));
+      final gym = await _repository.listGymTransactions();
+      gym.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+      gymTransactions.value = gym;
 
-      gymTransactions.value = gymTrans;
-      fbTransactions.value = fbTrans;
-      attendanceRecords.value = attendance;
+      final fnb = await _repository.listFnbTransactions();
+      fnb.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+      fbTransactions.value = fnb;
+
+      attendanceRecords.value = await _repository.listAttendance();
     } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal memuat transaksi: $e');
+      Get.snackbar('Kesalahan', 'Gagal memuat riwayat: ${_msg(e)}');
     } finally {
       isLoading.value = false;
     }
   }
 
-  Future<void> filterTransactionsByDateRange(
-    DateTime startDate,
-    DateTime endDate,
-  ) async {
-    try {
-      isLoading.value = true;
-      final gymTrans = _mockData.getGymTransactionsInRange(startDate, endDate);
-      final fbTrans = _mockData.getFoodBeverageTransactionsInRange(
-        startDate,
-        endDate,
-      );
-
-      gymTransactions.value = gymTrans;
-      fbTransactions.value = fbTrans;
-    } catch (e) {
-      Get.snackbar('Kesalahan', 'Gagal memfilter transaksi: $e');
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  Future<List<GymTransaction>> getMemberGymTransactionHistory(
-    int memberId,
-  ) async {
-    try {
-      return _mockData.getGymTransactionsByMemberId(memberId);
-    } catch (e) {
-      return [];
-    }
-  }
-
-  Future<List<FoodBeverageTransaction>> getMemberFBTransactionHistory(
-    int memberId,
-  ) async {
-    try {
-      return _mockData.getFoodBeverageTransactionsByMemberId(memberId);
-    } catch (e) {
-      return [];
-    }
-  }
-
-  Future<double> getTotalGymRevenue() async {
-    try {
-      return _mockData.totalGymRevenue;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  Future<double> getTotalFBRevenue() async {
-    try {
-      return _mockData.totalFoodBeverageRevenue;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  Future<double> getTotalCombinedRevenue() async {
-    try {
-      final gymRevenue = await getTotalGymRevenue();
-      final fbRevenue = await getTotalFBRevenue();
-      return gymRevenue + fbRevenue;
-    } catch (e) {
-      return 0;
-    }
-  }
+  String _msg(Object e) => e.toString().replaceFirst('Exception: ', '');
 }

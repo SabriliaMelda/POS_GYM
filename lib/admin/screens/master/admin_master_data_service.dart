@@ -5,7 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../auth/auth_service.dart';
+import '../../../kasir/models/attendance.dart';
 import '../../../kasir/models/food_beverage_item.dart';
+import '../../../kasir/models/food_beverage_transaction.dart';
 import '../../../kasir/models/gym_package.dart';
 import '../../../kasir/models/gym_transaction.dart';
 import '../../../kasir/models/member.dart';
@@ -244,6 +246,116 @@ class AdminMasterDataRepository {
     return _gymTransactionFromApi(tx);
   }
 
+  /// Daftar transaksi F&B terbaru (untuk panel riwayat kasir).
+  Future<List<FoodBeverageTransaction>> listFnbTransactions() async {
+    final response = await _client
+        .get(
+          Uri.parse('$_baseUrl/api/admin/transactions/fnb'),
+          headers: await _authorizedHeaders(),
+        )
+        .timeout(const Duration(seconds: 10));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {200});
+    final items = payload['items'];
+    if (items is! List) {
+      throw const AuthException('Data transaksi F&B dari server tidak valid');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(FoodBeverageTransaction.fromApiJson)
+        .toList();
+  }
+
+  /// Mencatat penjualan F&B ke database. [memberId] null = pembeli non-member.
+  /// Backend sekaligus mengurangi stok tiap item.
+  Future<FoodBeverageTransaction> createFnbTransaction({
+    int? memberId,
+    required String paymentMethod,
+    String notes = '',
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('$_baseUrl/api/admin/transactions/fnb'),
+          headers: await _authorizedHeaders(),
+          body: jsonEncode({
+            'member_id': memberId,
+            'payment_method': paymentMethod,
+            'notes': notes,
+            'items': items,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {201});
+    final tx = payload['transaction'];
+    if (tx is! Map<String, dynamic>) {
+      throw const AuthException('Data transaksi F&B dari server tidak valid');
+    }
+    return FoodBeverageTransaction.fromApiJson(tx);
+  }
+
+  /// Mencari nama member dari member_code (PUBLIK, tanpa token) untuk
+  /// halaman konfirmasi absensi di HP sebelum menekan "Hadir".
+  Future<AttendanceMember> lookupAttendanceMember(String memberCode) async {
+    final response = await _client
+        .get(
+          Uri.parse(
+            '$_baseUrl/api/attendance/member'
+            '?code=${Uri.encodeQueryComponent(memberCode)}',
+          ),
+          headers: const {'Content-Type': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 15));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {200});
+    return AttendanceMember(
+      memberCode: payload['member_code']?.toString() ?? memberCode,
+      memberName: payload['member_name']?.toString() ?? '',
+      active: payload['active'] == true,
+    );
+  }
+
+  /// Check-in absensi dari HP member (PUBLIK, tanpa token) saat memindai
+  /// barcode. Backend mencatat kehadiran hari ini.
+  Future<AttendanceCheckIn> checkInAttendance(String memberCode) async {
+    final response = await _client
+        .post(
+          Uri.parse('$_baseUrl/api/attendance/check-in'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'member_code': memberCode}),
+        )
+        .timeout(const Duration(seconds: 15));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {200, 201});
+    return AttendanceCheckIn(
+      memberName: payload['member_name']?.toString() ?? '',
+      checkInTime: payload['check_in_time']?.toString() ?? '',
+      already: payload['already'] == true,
+      message: payload['message']?.toString() ?? '',
+    );
+  }
+
+  /// Daftar absensi untuk panel kasir (butuh login).
+  Future<List<Attendance>> listAttendance() async {
+    final response = await _client
+        .get(
+          Uri.parse('$_baseUrl/api/admin/attendance'),
+          headers: await _authorizedHeaders(),
+        )
+        .timeout(const Duration(seconds: 10));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {200});
+    final items = payload['items'];
+    if (items is! List) {
+      throw const AuthException('Data absensi dari server tidak valid');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(Attendance.fromApiJson)
+        .toList();
+  }
+
   GymTransaction _gymTransactionFromApi(Map<String, dynamic> json) {
     final date =
         DateTime.tryParse(
@@ -371,6 +483,36 @@ class AdminMasterDataRepository {
           : 'Gagal memproses master data F&B.',
     );
   }
+}
+
+/// Data member untuk halaman konfirmasi absensi (sebelum tekan "Hadir").
+class AttendanceMember {
+  const AttendanceMember({
+    required this.memberCode,
+    required this.memberName,
+    required this.active,
+  });
+
+  final String memberCode;
+  final String memberName;
+  final bool active;
+}
+
+/// Hasil check-in absensi dari backend.
+class AttendanceCheckIn {
+  const AttendanceCheckIn({
+    required this.memberName,
+    required this.checkInTime,
+    required this.already,
+    required this.message,
+  });
+
+  final String memberName;
+  final String checkInTime;
+
+  /// True bila member sudah tercatat hadir hari ini sebelumnya.
+  final bool already;
+  final String message;
 }
 
 class GymPackageInput {

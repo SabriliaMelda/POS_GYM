@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -24,12 +22,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   static const _border = Color(0xFFE2E8F0);
   static const _primary = Color(0xFF1D4ED8);
   static const _navy = Color(0xFF071A3D);
-  static const _revenueTypes = [
-    _HistoryType.registration,
-    _HistoryType.dailyPass,
-    _HistoryType.foodBeverage,
-    _HistoryType.renewal,
-  ];
   late final TransactionHistoryController _controller;
   final _searchController = TextEditingController();
   String _query = '';
@@ -197,28 +189,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           ),
         ],
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final wide = constraints.maxWidth >= 640;
-          final summary = _buildHeroSummary(totalRevenue);
-          final chart = _buildRevenueChart(entries);
-
-          if (wide) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(width: 290, child: summary),
-                const SizedBox(width: 24),
-                Expanded(child: chart),
-              ],
-            );
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [summary, const SizedBox(height: 18), chart],
-          );
-        },
-      ),
+      child: _buildHeroSummary(totalRevenue),
     );
   }
 
@@ -255,116 +226,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         ),
       ],
     );
-  }
-
-  Widget _buildRevenueChart(List<_HistoryEntry> entries) {
-    final groups = _monthlyRevenue(entries);
-    final types = _revenueTypes;
-    final maxValue = groups.fold<double>(0, (max, group) {
-      final groupMax = group.values.values.fold<double>(0, math.max);
-      return math.max(max, groupMax);
-    });
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text(
-          'Omzet per Kategori (4 bulan terakhir)',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 90,
-          width: double.infinity,
-          child: maxValue <= 0
-              ? const Center(
-                  child: Text(
-                    'Belum ada data omzet untuk ditampilkan',
-                    style: TextStyle(color: Color(0xFFC8DDF2), fontSize: 11),
-                  ),
-                )
-              : CustomPaint(
-                  painter: _GroupedBarChartPainter(
-                    groups: groups,
-                    types: types,
-                    colorFor: (type) => _visualFor(type).color,
-                    maxValue: maxValue,
-                  ),
-                ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 12,
-          runSpacing: 6,
-          children: types.map((type) {
-            final visual = _visualFor(type);
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: visual.color,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  visual.shortLabel,
-                  style: const TextStyle(
-                    color: Color(0xFFC8DDF2),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  List<_MonthRevenue> _monthlyRevenue(List<_HistoryEntry> entries) {
-    final now = DateTime.now();
-    final months = [
-      for (var i = 3; i >= 0; i--) DateTime(now.year, now.month - i, 1),
-    ];
-    return months.map((month) {
-      final values = {for (final type in _revenueTypes) type: 0.0};
-      for (final entry in entries) {
-        if (_revenueTypes.contains(entry.type) &&
-            entry.date.year == month.year &&
-            entry.date.month == month.month) {
-          values[entry.type] = values[entry.type]! + entry.amount;
-        }
-      }
-      return _MonthRevenue(label: _monthShort(month.month), values: values);
-    }).toList();
-  }
-
-  String _monthShort(int month) {
-    const names = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agu',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des',
-    ];
-    return names[(month - 1) % 12];
   }
 
   Widget _buildFilters(List<_HistoryEntry> entries) {
@@ -1115,13 +976,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   }
 }
 
-class _MonthRevenue {
-  const _MonthRevenue({required this.label, required this.values});
-
-  final String label;
-  final Map<_HistoryType, double> values;
-}
-
 class _HistoryDayGroup {
   const _HistoryDayGroup({
     required this.date,
@@ -1132,167 +986,6 @@ class _HistoryDayGroup {
   final DateTime date;
   final List<_HistoryEntry> entries;
   final double revenue;
-}
-
-class _GroupedBarChartPainter extends CustomPainter {
-  _GroupedBarChartPainter({
-    required this.groups,
-    required this.types,
-    required this.colorFor,
-    required this.maxValue,
-  });
-
-  final List<_MonthRevenue> groups;
-  final List<_HistoryType> types;
-  final Color Function(_HistoryType) colorFor;
-  final double maxValue;
-
-  static const _axisColor = Color(0x33FFFFFF);
-  static const _labelColor = Color(0xFFC8DDF2);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const leftAxis = 40.0;
-    const bottomAxis = 18.0;
-    const topPad = 6.0;
-    final plotLeft = leftAxis;
-    final plotTop = topPad;
-    final plotRight = size.width;
-    final plotBottom = size.height - bottomAxis;
-    final plotHeight = plotBottom - plotTop;
-    final plotWidth = plotRight - plotLeft;
-    if (plotHeight <= 0 || plotWidth <= 0) return;
-
-    final niceMax = _niceCeil(maxValue);
-    final gridPaint = Paint()
-      ..color = _axisColor
-      ..strokeWidth = 1;
-
-    const gridCount = 4;
-    for (var i = 0; i <= gridCount; i++) {
-      final fraction = i / gridCount;
-      final y = plotBottom - fraction * plotHeight;
-      canvas.drawLine(Offset(plotLeft, y), Offset(plotRight, y), gridPaint);
-      _drawText(
-        canvas,
-        _shortValue(niceMax * fraction),
-        Offset(plotLeft - 6, y),
-        align: TextAlign.right,
-        anchorRight: true,
-        anchorMiddle: true,
-        fontSize: 8,
-      );
-    }
-
-    final groupWidth = plotWidth / groups.length;
-    final barCount = types.length;
-    const maxBarWidth = 28.0;
-    const gap = 4.0;
-    final rawBarWidth = (groupWidth * 0.7 - gap * (barCount - 1)) / barCount;
-    final barWidth = math.min(rawBarWidth, maxBarWidth);
-    final barAreaWidth = barWidth * barCount + gap * (barCount - 1);
-
-    for (var g = 0; g < groups.length; g++) {
-      final group = groups[g];
-      final groupStart = plotLeft + g * groupWidth;
-      final barsStart = groupStart + (groupWidth - barAreaWidth) / 2;
-
-      for (var t = 0; t < barCount; t++) {
-        final type = types[t];
-        final value = group.values[type] ?? 0;
-        final barHeight = niceMax <= 0 ? 0.0 : (value / niceMax) * plotHeight;
-        final left = barsStart + t * (barWidth + gap);
-        final rect = Rect.fromLTWH(
-          left,
-          plotBottom - barHeight,
-          barWidth,
-          barHeight,
-        );
-        final paint = Paint()..color = colorFor(type);
-        canvas.drawRRect(
-          RRect.fromRectAndCorners(
-            rect,
-            topLeft: const Radius.circular(2),
-            topRight: const Radius.circular(2),
-          ),
-          paint,
-        );
-      }
-
-      _drawText(
-        canvas,
-        group.label,
-        Offset(groupStart + groupWidth / 2, plotBottom + 4),
-        align: TextAlign.center,
-        anchorCenter: true,
-        fontSize: 9,
-      );
-    }
-  }
-
-  double _niceCeil(double value) {
-    if (value <= 0) return 1;
-    final magnitude = math
-        .pow(10, (math.log(value) / math.ln10).floor())
-        .toDouble();
-    final normalized = value / magnitude;
-    final niceNormalized = normalized <= 1
-        ? 1
-        : normalized <= 2
-        ? 2
-        : normalized <= 5
-        ? 5
-        : 10;
-    return niceNormalized * magnitude;
-  }
-
-  String _shortValue(double value) {
-    if (value >= 1000000) {
-      final millions = value / 1000000;
-      return '${millions.toStringAsFixed(millions % 1 == 0 ? 0 : 1)}jt';
-    }
-    if (value >= 1000) return '${(value / 1000).round()}rb';
-    return value.toStringAsFixed(0);
-  }
-
-  void _drawText(
-    Canvas canvas,
-    String text,
-    Offset position, {
-    required TextAlign align,
-    bool anchorRight = false,
-    bool anchorCenter = false,
-    bool anchorMiddle = false,
-    double fontSize = 9,
-  }) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: _labelColor,
-          fontSize: fontSize,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      textAlign: align,
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    var dx = position.dx;
-    if (anchorRight) {
-      dx -= painter.width;
-    } else if (anchorCenter) {
-      dx -= painter.width / 2;
-    }
-    var dy = position.dy;
-    if (anchorMiddle) dy -= painter.height / 2;
-    painter.paint(canvas, Offset(dx, dy));
-  }
-
-  @override
-  bool shouldRepaint(covariant _GroupedBarChartPainter oldDelegate) {
-    return oldDelegate.groups != groups || oldDelegate.maxValue != maxValue;
-  }
 }
 
 enum _HistoryType { registration, dailyPass, foodBeverage, renewal, visit }

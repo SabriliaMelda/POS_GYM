@@ -1,0 +1,28 @@
+-- Tabel transaksi Food & Beverage (penjualan kasir).
+-- Jalankan sekali di database pos_gym sebelum memakai fitur transaksi F&B.
+--
+-- Endpoint backend terkait:
+--   POST /api/admin/transactions/fnb  -> simpan transaksi + kurangi stok
+--   GET  /api/admin/transactions/fnb  -> daftar untuk panel Riwayat kasir
+-- Handler: backend/internal/handler/admin_fnb_transaction.go
+
+CREATE TABLE IF NOT EXISTS food_beverage_transactions (
+  id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  transaction_code VARCHAR(30) NOT NULL,
+  member_code      VARCHAR(12) NULL,            -- NULL = pembeli non-member
+  customer_name    VARCHAR(150) NOT NULL,
+  items            JSON NOT NULL,               -- [{item_id,name,price,quantity,subtotal}, ...]
+  total_amount     DECIMAL(12,2) UNSIGNED NOT NULL,
+  discount_amount  DECIMAL(12,2) UNSIGNED NOT NULL DEFAULT 0.00,
+  tax_amount       DECIMAL(12,2) UNSIGNED NOT NULL DEFAULT 0.00,
+  final_amount     DECIMAL(12,2) UNSIGNED NOT NULL,
+  payment_method   VARCHAR(20) NOT NULL,        -- mis. QRIS
+  status           VARCHAR(20) NOT NULL DEFAULT 'completed',
+  notes            VARCHAR(255) NULL,
+  transaction_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_fnb_tx_code (transaction_code),
+  KEY idx_fnb_tx_date (transaction_date),
+  KEY idx_fnb_tx_member (member_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

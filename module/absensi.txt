@@ -1,0 +1,22 @@
+-- Tabel absensi (kehadiran member via scan barcode).
+-- Jalankan sekali di database pos_gym sebelum memakai fitur absensi.
+--
+-- Alur: kasir tampilkan QR berisi URL .../#/member-check-in?member=<member_code>.
+-- Member memindai QR dengan HP -> halaman check-in otomatis memanggil:
+--   POST /api/attendance/check-in   (PUBLIK, body {"member_code": "..."}) -> catat hadir
+--   GET  /api/admin/attendance      (butuh login) -> daftar untuk panel kasir
+-- Handler: backend/internal/handler/attendance.go
+-- UNIQUE(member_code, attendance_date) menjamin 1 kehadiran per member per hari.
+
+CREATE TABLE IF NOT EXISTS attendance (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  member_code     VARCHAR(12) NOT NULL,
+  member_name     VARCHAR(150) NOT NULL,
+  attendance_date DATE NOT NULL,
+  check_in_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  method          VARCHAR(20) NOT NULL DEFAULT 'barcode',
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_attendance_member_day (member_code, attendance_date),
+  KEY idx_attendance_date (attendance_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

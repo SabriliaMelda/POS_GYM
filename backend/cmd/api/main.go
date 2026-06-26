@@ -60,6 +60,12 @@ func main() {
 	mux.HandleFunc("POST /api/admin/master/members/{id}/renew", authHandler.RenewMember)
 	mux.HandleFunc("GET /api/admin/transactions/gym", authHandler.ListGymTransactions)
 	mux.HandleFunc("POST /api/admin/transactions/gym", authHandler.CreateGymTransaction)
+	mux.HandleFunc("GET /api/admin/transactions/fnb", authHandler.ListFNBTransactions)
+	mux.HandleFunc("POST /api/admin/transactions/fnb", authHandler.CreateFNBTransaction)
+	// Absensi: lookup + check-in publik dari HP member (tanpa login) + daftar kasir.
+	mux.HandleFunc("GET /api/attendance/member", authHandler.LookupMemberForCheckIn)
+	mux.HandleFunc("POST /api/attendance/check-in", authHandler.CheckInAttendance)
+	mux.HandleFunc("GET /api/admin/attendance", authHandler.ListAttendance)
 
 	// --- [AWAL PERUBAHAN UNTUK RENDER] ---
 	// Render otomatis memberikan "Pintu" (Port) acak lewat variabel sistem "PORT".

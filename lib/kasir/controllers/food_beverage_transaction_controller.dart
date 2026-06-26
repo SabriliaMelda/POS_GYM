@@ -160,6 +160,41 @@ class FoodBeverageTransactionController extends GetxController {
     return (item.price * 0.9 / 1000).round() * 1000;
   }
 
+  /// Menyimpan transaksi F&B (isi keranjang saat ini) ke database lewat
+  /// backend; stok ikut dikurangi di server. Mengembalikan null bila berhasil,
+  /// atau pesan error bila gagal (keranjang tidak dikosongkan agar bisa ulangi).
+  Future<String?> checkout({String paymentMethod = 'QRIS'}) async {
+    if (cartItems.isEmpty) return 'Keranjang masih kosong.';
+    if (isLoading.value) return 'Transaksi sedang diproses.';
+    try {
+      isLoading.value = true;
+      await _repository.createFnbTransaction(
+        memberId: isMemberCustomer.value ? selectedMember.value?.id : null,
+        paymentMethod: paymentMethod,
+        notes: isMemberCustomer.value
+            ? 'Pembeli member: ${selectedMember.value?.name ?? '-'}'
+            : 'Pembeli non-member',
+        items: cartItems
+            .map(
+              (c) => {
+                'item_id': c.itemId,
+                'name': c.itemName,
+                'price': c.price,
+                'quantity': c.quantity,
+              },
+            )
+            .toList(),
+      );
+      clearCart();
+      await loadItems(); // segarkan stok terbaru dari backend
+      return null;
+    } catch (e) {
+      return _msg(e);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   /// URL penuh gambar menu dari backend (kosong bila item tanpa foto).
   String imageUrlFor(FoodBeverageItem item) =>
       _repository.resolveImageUrl(item.imagePath);

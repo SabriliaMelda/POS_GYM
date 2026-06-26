@@ -53,6 +53,49 @@ class FoodBeverageTransaction {
     };
   }
 
+  factory FoodBeverageTransaction.fromApiJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    final items = <CartItem>[];
+    if (rawItems is List) {
+      for (final entry in rawItems) {
+        if (entry is Map<String, dynamic>) {
+          final quantity = (entry['quantity'] as num?)?.toInt() ?? 0;
+          final price = (entry['price'] as num?)?.toDouble() ?? 0;
+          items.add(
+            CartItem(
+              itemId: (entry['item_id'] as num?)?.toInt() ?? 0,
+              itemName: entry['name']?.toString() ?? '',
+              price: price,
+              quantity: quantity,
+              subtotal:
+                  (entry['subtotal'] as num?)?.toDouble() ?? price * quantity,
+            ),
+          );
+        }
+      }
+    }
+    final date =
+        DateTime.tryParse(json['transaction_date']?.toString() ?? '')?.toLocal() ??
+        DateTime.now();
+
+    return FoodBeverageTransaction(
+      transactionId: json['transaction_code']?.toString() ?? '',
+      memberId: null,
+      memberName: json['customer_name']?.toString(),
+      items: items,
+      totalAmount: (json['total_amount'] as num?)?.toDouble() ?? 0,
+      discountAmount: (json['discount_amount'] as num?)?.toDouble(),
+      taxAmount: (json['tax_amount'] as num?)?.toDouble(),
+      finalAmount: (json['final_amount'] as num?)?.toDouble() ?? 0,
+      paymentMethod: json['payment_method']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'completed',
+      transactionDate: date,
+      notes: json['notes']?.toString(),
+      createdAt: date,
+      updatedAt: date,
+    );
+  }
+
   factory FoodBeverageTransaction.fromMap(Map<String, dynamic> map) {
     return FoodBeverageTransaction(
       id: map['id'],

@@ -35,6 +35,25 @@ class Attendance {
     };
   }
 
+  factory Attendance.fromApiJson(Map<String, dynamic> json) {
+    final date =
+        DateTime.tryParse(json['attendance_date']?.toString() ?? '') ??
+        DateTime.tryParse(
+          json['check_in_at']?.toString() ?? '',
+        )?.toLocal() ??
+        DateTime.now();
+    return Attendance(
+      id: (json['id'] as num?)?.toInt(),
+      memberId: 0,
+      memberName: json['member_name']?.toString(),
+      attendanceDate: date,
+      checkInTime: json['check_in_time']?.toString(),
+      rfidCardNumber: 'BARCODE:${json['member_code'] ?? ''}',
+      createdAt: date,
+      updatedAt: date,
+    );
+  }
+
   factory Attendance.fromMap(Map<String, dynamic> map) {
     return Attendance(
       id: map['id'],

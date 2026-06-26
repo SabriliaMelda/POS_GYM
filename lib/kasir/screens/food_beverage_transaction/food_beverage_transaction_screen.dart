@@ -939,15 +939,21 @@ class _FoodBeverageTransactionScreenState
                       Expanded(
                         flex: 2,
                         child: FilledButton.icon(
-                          onPressed: () {
+                          onPressed: () async {
+                            final error = await _controller.checkout(
+                              paymentMethod: 'QRIS',
+                            );
+                            if (error != null) {
+                              Get.snackbar('Gagal Menyimpan', error);
+                              return;
+                            }
                             Get.back();
-                            _controller.clearCart();
                             if (mounted) setState(() => _showCartPanel = false);
                             Get.snackbar(
                               'Pembayaran Selesai',
                               'Transaksi F&B '
                                   '${CurrencyUtils.formatCurrencySimple(amount)} '
-                                  'selesai.',
+                                  'tersimpan ke database.',
                             );
                           },
                           style: FilledButton.styleFrom(
