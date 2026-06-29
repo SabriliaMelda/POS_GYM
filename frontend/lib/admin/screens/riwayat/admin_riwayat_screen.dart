@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 
 import '../../../kasir/models/index.dart';
-import '../../../kasir/services/mock_data_service.dart';
+import '../../../kasir/widgets/month_year_picker.dart';
+import '../master/admin_master_data_service.dart';
 
 class AdminRiwayatScreen extends StatefulWidget {
   const AdminRiwayatScreen({super.key});
@@ -33,6 +34,45 @@ class _AdminRiwayatScreenState extends State<AdminRiwayatScreen> {
   DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   bool _showFilterPanel = false;
 
+  // Sumber data dari backend (sama seperti kasir), bukan mock.
+  final AdminMasterDataRepository _repository = AdminMasterDataRepository();
+  List<GymTransaction> _gymTransactions = [];
+  List<FoodBeverageTransaction> _fnbTransactions = [];
+  List<Attendance> _attendanceRecords = [];
+  bool _isLoading = true;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final gym = await _repository.listGymTransactions();
+      final fnb = await _repository.listFnbTransactions();
+      final attendance = await _repository.listAttendance();
+      if (!mounted) return;
+      setState(() {
+        _gymTransactions = gym;
+        _fnbTransactions = fnb;
+        _attendanceRecords = attendance;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString().replaceFirst('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -48,8 +88,15 @@ class _AdminRiwayatScreenState extends State<AdminRiwayatScreen> {
     return Scaffold(
       backgroundColor: _background,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _loadError != null
+            ? _buildErrorState()
+            : RefreshIndicator(
+                onRefresh: _loadData,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
               sliver: SliverToBoxAdapter(
@@ -109,6 +156,36 @@ class _AdminRiwayatScreenState extends State<AdminRiwayatScreen> {
                   },
                 ),
               ),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_rounded, size: 48, color: _muted),
+            const SizedBox(height: 12),
+            Text(
+              'Gagal memuat riwayat.\n${_loadError ?? ''}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba lagi'),
+            ),
           ],
         ),
       ),
@@ -447,21 +524,12 @@ class _AdminRiwayatScreenState extends State<AdminRiwayatScreen> {
   }
 
   Future<void> _pickMonthFilter() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedMonth,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 1, 12, 31),
-      helpText: 'Pilih bulan riwayat',
-      cancelText: 'Batal',
-      confirmText: 'Pakai Bulan',
-    );
+    final picked = await pickMonthYear(context, initial: _selectedMonth);
     if (picked == null || !mounted) return;
 
     setState(() {
       _dateFilterMode = _DateFilterMode.month;
-      _selectedMonth = DateTime(picked.year, picked.month);
+      _selectedMonth = picked;
     });
   }
 
@@ -705,11 +773,10 @@ class _AdminRiwayatScreenState extends State<AdminRiwayatScreen> {
   }
 
   List<_HistoryEntry> _buildEntries() {
-    final service = MockDataService.instance;
     final entries = <_HistoryEntry>[
-      ...service.gymTransactions.map(_entryFromGym),
-      ...service.foodBeverageTransactions.map(_entryFromFoodBeverage),
-      ...service.attendanceRecords.map(_entryFromAttendance),
+      ..._gymTransactions.map(_entryFromGym),
+      ..._fnbTransactions.map(_entryFromFoodBeverage),
+      ..._attendanceRecords.map(_entryFromAttendance),
     ]..sort((a, b) => b.date.compareTo(a.date));
     return entries;
   }

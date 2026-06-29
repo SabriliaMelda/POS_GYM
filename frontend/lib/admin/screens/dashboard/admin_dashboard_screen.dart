@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 
-import '../../../kasir/services/mock_data_service.dart';
+import '../../../kasir/models/index.dart';
+import '../master/admin_master_data_service.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
   static const Color _background = Color(0xFFF4F7FB);
@@ -14,31 +15,121 @@ class AdminDashboardScreen extends StatelessWidget {
   static const Color _navy = Color(0xFF071A3D);
 
   @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  // Semua angka beranda dihitung dari data backend (sama seperti kasir).
+  final AdminMasterDataRepository _repository = AdminMasterDataRepository();
+  _AdminDashboardData? _data;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final members = await _repository.listMembers();
+      final gym = await _repository.listGymTransactions();
+      final fnb = await _repository.listFnbTransactions();
+      final packages = await _repository.listGymPackages();
+      final fnbItems = await _repository.listFnbItems();
+      final attendance = await _repository.listAttendance();
+      if (!mounted) return;
+      setState(() {
+        _data = _AdminDashboardData.from(
+          members: members,
+          gymTransactions: gym,
+          fnbTransactions: fnb,
+          packages: packages,
+          fnbItems: fnbItems,
+          attendance: attendance,
+        );
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final data = _AdminDashboardData.from(MockDataService.instance);
-
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: AdminDashboardScreen._background,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 900;
-            final padding = isWide ? 28.0 : 16.0;
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? _buildError()
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 900;
+                    final padding = isWide ? 28.0 : 16.0;
+                    final data = _data!;
 
-            return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(padding, 18, padding, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _Header(data: data, isWide: isWide),
-                  const SizedBox(height: 16),
-                  _MetricGrid(data: data, isWide: isWide),
-                  const SizedBox(height: 16),
-                  _ChartSection(data: data, isWide: isWide),
-                ],
+                    return SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(padding, 18, padding, 28),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Header(isWide: isWide),
+                          const SizedBox(height: 16),
+                          _MetricGrid(data: data, isWide: isWide),
+                          const SizedBox(height: 16),
+                          _ChartSection(data: data, isWide: isWide),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            );
-          },
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              size: 48,
+              color: AdminDashboardScreen._muted,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Gagal memuat beranda.\n${_error ?? ''}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AdminDashboardScreen._muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba lagi'),
+            ),
+          ],
         ),
       ),
     );
@@ -46,9 +137,8 @@ class AdminDashboardScreen extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.data, required this.isWide});
+  const _Header({required this.isWide});
 
-  final _AdminDashboardData data;
   final bool isWide;
 
   @override
@@ -97,13 +187,7 @@ class _Header extends StatelessWidget {
             padding: EdgeInsets.all(isWide ? 24 : 18),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(child: _buildHeaderContent()),
-                if (isWide) ...[
-                  const SizedBox(width: 26),
-                  _HeroSummaryPanel(data: data),
-                ],
-              ],
+              children: [Expanded(child: _buildHeaderContent())],
             ),
           ),
         ],
@@ -155,94 +239,6 @@ class _Header extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _HeroSummaryPanel extends StatelessWidget {
-  const _HeroSummaryPanel({required this.data});
-
-  final _AdminDashboardData data;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 248,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Omzet Bulan Ini',
-            style: TextStyle(
-              color: Color(0xFFDCEBFF),
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _HeroSummaryRow(label: 'Total omzet', value: data.monthRevenueLabel),
-          const SizedBox(height: 10),
-          _HeroSummaryRow(
-            label: 'Total transaksi',
-            value: data.monthTransactionCount.toString(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeroSummaryRow extends StatelessWidget {
-  const _HeroSummaryRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 28,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.78),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -496,16 +492,7 @@ class _MiniChartCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            item.changeLabel,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.82),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           SizedBox(
             height: 96,
             width: double.infinity,
@@ -692,13 +679,28 @@ class _AdminDashboardData {
     decimalDigits: 0,
   );
 
-  factory _AdminDashboardData.from(MockDataService service) {
+  factory _AdminDashboardData.from({
+    required List<Member> members,
+    required List<GymTransaction> gymTransactions,
+    required List<FoodBeverageTransaction> fnbTransactions,
+    required List<GymPackage> packages,
+    required List<FoodBeverageItem> fnbItems,
+    required List<Attendance> attendance,
+  }) {
     final now = DateTime.now();
-    final activeMembers = service.getActiveMembers();
+    final activeMembers = members.where((member) => !member.isExpired).toList();
     final expiringMembers = activeMembers
         .where((member) => member.daysUntilExpiry <= 7)
         .length;
-    final activeProducts = service.getActiveFoodBeverageItems();
+    final todayVisits = attendance
+        .where(
+          (a) =>
+              a.attendanceDate.year == now.year &&
+              a.attendanceDate.month == now.month &&
+              a.attendanceDate.day == now.day,
+        )
+        .length;
+    final activeProducts = fnbItems.where((item) => item.isActive).toList();
     final lowStockProducts = activeProducts.where((item) => item.stock <= 12);
 
     final rangeStart = DateTime(
@@ -708,22 +710,17 @@ class _AdminDashboardData {
     ).subtract(const Duration(days: 27));
     final rangeEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-    final rangeGymTransactions = service.gymTransactions.where(
+    final rangeGymTransactions = gymTransactions.where(
       (transaction) =>
           !transaction.transactionDate.isBefore(rangeStart) &&
           !transaction.transactionDate.isAfter(rangeEnd),
     );
-    final rangeFnbTransactions = service.foodBeverageTransactions.where(
+    final rangeFnbTransactions = fnbTransactions.where(
       (transaction) =>
           !transaction.transactionDate.isBefore(rangeStart) &&
           !transaction.transactionDate.isAfter(rangeEnd),
     );
 
-    final dailyPass = rangeGymTransactions.where((transaction) {
-      final package = (transaction.packageName ?? '').toLowerCase();
-      final notes = (transaction.notes ?? '').toLowerCase();
-      return package.contains('daily') || notes.contains('harian');
-    }).toList();
     final newMembers = rangeGymTransactions.where((transaction) {
       final member = (transaction.memberName ?? '').toLowerCase();
       final notes = (transaction.notes ?? '').toLowerCase();
@@ -753,23 +750,14 @@ class _AdminDashboardData {
     return _AdminDashboardData(
       activeMembers: activeMembers.length,
       expiringMembers: expiringMembers,
-      todayVisits: service.getTodayAttendance().length,
-      activePackages: service.getActiveGymPackages().length,
+      todayVisits: todayVisits,
+      activePackages: packages.where((p) => p.isActive).length,
       activeProducts: activeProducts.length,
       lowStockProducts: lowStockProducts.length,
       monthRevenue: monthRevenue,
       monthTransactionCount:
           rangeGymTransactions.length + rangeFnbTransactions.length,
       chartItems: [
-        _ChartItem(
-          title: 'Daily Pass',
-          value: dailyPass.length,
-          helper: 'Kunjungan non-member',
-          values: _periodCounts(dailyPass, rangeStart),
-          labels: _periodLabels,
-          icon: Icons.confirmation_number_rounded,
-          color: AdminDashboardScreen._navy,
-        ),
         _ChartItem(
           title: 'Member Baru',
           value: newMembers.length,

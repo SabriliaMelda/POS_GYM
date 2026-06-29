@@ -1,0 +1,74 @@
+-- =====================================================================
+-- Seed demo: 5 member yang baru MEMPERPANJANG membership.
+-- Tiap renewal memperpanjang masa berlaku sesuai durasi paket member, dan
+-- kolom membership_expiry_date member ikut diperbarui agar konsisten.
+-- Aman dijalankan sekali (menambah 5 baris ke member_renewals).
+-- =====================================================================
+
+USE `pos_gym`;
+
+-- Pola per member: catat renewal (prev = expiry sekarang, new = + durasi paket,
+-- amount = harga paket), lalu perpanjang masa berlaku member.
+
+-- 1) Aditya Pratama (PKG-001) - perpanjang hari ini.
+INSERT INTO `member_renewals`
+  (member_code, package_code, previous_expiry_date, new_expiry_date, amount, renewed_at)
+SELECT m.member_code, m.package_code, m.membership_expiry_date,
+       DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY), g.price, '2026-06-28'
+FROM members m JOIN gym_packages g ON g.package_code = m.package_code
+WHERE m.member_code = 'MBR-96018192';
+UPDATE members m JOIN gym_packages g ON g.package_code = m.package_code
+SET m.membership_expiry_date = DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY)
+WHERE m.member_code = 'MBR-96018192';
+
+-- 2) Aisyah Lestari (PKG-002) - perpanjang 2 hari lalu.
+INSERT INTO `member_renewals`
+  (member_code, package_code, previous_expiry_date, new_expiry_date, amount, renewed_at)
+SELECT m.member_code, m.package_code, m.membership_expiry_date,
+       DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY), g.price, '2026-06-26'
+FROM members m JOIN gym_packages g ON g.package_code = m.package_code
+WHERE m.member_code = 'MBR-21161094';
+UPDATE members m JOIN gym_packages g ON g.package_code = m.package_code
+SET m.membership_expiry_date = DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY)
+WHERE m.member_code = 'MBR-21161094';
+
+-- 3) Akbar Santoso (PKG-003) - perpanjang 4 hari lalu (sempat kedaluwarsa).
+INSERT INTO `member_renewals`
+  (member_code, package_code, previous_expiry_date, new_expiry_date, amount, renewed_at)
+SELECT m.member_code, m.package_code, m.membership_expiry_date,
+       DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY), g.price, '2026-06-24'
+FROM members m JOIN gym_packages g ON g.package_code = m.package_code
+WHERE m.member_code = 'MBR-50921893';
+UPDATE members m JOIN gym_packages g ON g.package_code = m.package_code
+SET m.membership_expiry_date = DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY)
+WHERE m.member_code = 'MBR-50921893';
+
+-- 4) Anindya Maharani (PKG-004) - perpanjang 7 hari lalu.
+INSERT INTO `member_renewals`
+  (member_code, package_code, previous_expiry_date, new_expiry_date, amount, renewed_at)
+SELECT m.member_code, m.package_code, m.membership_expiry_date,
+       DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY), g.price, '2026-06-21'
+FROM members m JOIN gym_packages g ON g.package_code = m.package_code
+WHERE m.member_code = 'MBR-15500595';
+UPDATE members m JOIN gym_packages g ON g.package_code = m.package_code
+SET m.membership_expiry_date = DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY)
+WHERE m.member_code = 'MBR-15500595';
+
+-- 5) Bagas Saputra (PKG-005) - perpanjang 9 hari lalu.
+INSERT INTO `member_renewals`
+  (member_code, package_code, previous_expiry_date, new_expiry_date, amount, renewed_at)
+SELECT m.member_code, m.package_code, m.membership_expiry_date,
+       DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY), g.price, '2026-06-19'
+FROM members m JOIN gym_packages g ON g.package_code = m.package_code
+WHERE m.member_code = 'MBR-29429897';
+UPDATE members m JOIN gym_packages g ON g.package_code = m.package_code
+SET m.membership_expiry_date = DATE_ADD(m.membership_expiry_date, INTERVAL g.duration_days DAY)
+WHERE m.member_code = 'MBR-29429897';
+
+-- Verifikasi:
+-- SELECT r.renewed_at, m.full_name, r.package_code, r.previous_expiry_date,
+--        r.new_expiry_date, r.amount
+-- FROM member_renewals r JOIN members m ON m.member_code = r.member_code
+-- WHERE r.member_code IN ('MBR-96018192','MBR-21161094','MBR-50921893',
+--                         'MBR-15500595','MBR-29429897')
+-- ORDER BY r.renewed_at DESC;

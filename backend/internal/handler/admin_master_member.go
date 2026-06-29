@@ -25,14 +25,14 @@ type memberResponse struct {
 	InitialPackageCode   string                      `json:"initial_package_code"`
 	RegistrationDate     time.Time                   `json:"registration_date"`
 	MembershipExpiryDate time.Time                   `json:"membership_expiry_date"`
-	TotalVisits          uint64                      `json:"total_visits"`
-	PhotoPath            *string                     `json:"photo_path"`
-	IsActive             bool                        `json:"is_active"`
-	Vouchers             []voucherRedemptionResponse `json:"vouchers"`
-	Renewals             []renewalResponse           `json:"renewals"`
-	FollowUps            []followUpResponse          `json:"follow_ups"`
-	CreatedAt            time.Time                   `json:"created_at"`
-	UpdatedAt            time.Time                   `json:"updated_at"`
+	TotalVisits          uint64                  `json:"total_visits"`
+	PhotoPath            *string                 `json:"photo_path"`
+	IsActive             bool                    `json:"is_active"`
+	Vouchers             []memberVoucherResponse `json:"vouchers"`
+	Renewals             []renewalResponse       `json:"renewals"`
+	FollowUps            []followUpResponse      `json:"follow_ups"`
+	CreatedAt            time.Time               `json:"created_at"`
+	UpdatedAt            time.Time               `json:"updated_at"`
 }
 
 type followUpResponse struct {
@@ -40,12 +40,6 @@ type followUpResponse struct {
 	Subject        string    `json:"subject"`
 	Type           string    `json:"type"`
 	SentAt         time.Time `json:"sent_at"`
-}
-
-type voucherRedemptionResponse struct {
-	Percent        int       `json:"percent"`
-	VisitMilestone int       `json:"visit_milestone"`
-	UsedAt         time.Time `json:"used_at"`
 }
 
 type renewalResponse struct {
@@ -76,7 +70,7 @@ func (h *AuthHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	// Voucher & riwayat perpanjangan dibaca lebih dulu dalam satu query
 	// masing-masing agar tidak N+1. Jika tabelnya belum ada, fitur tetap
 	// jalan (peta kosong).
-	vouchers := h.loadVoucherRedemptions()
+	vouchers := h.loadMemberVouchers()
 	renewals := h.loadRenewals()
 	followUps := h.loadFollowUps()
 
@@ -98,7 +92,7 @@ func (h *AuthHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 		if list, ok := vouchers[item.MemberCode]; ok {
 			item.Vouchers = list
 		} else {
-			item.Vouchers = []voucherRedemptionResponse{}
+			item.Vouchers = []memberVoucherResponse{}
 		}
 		if list, ok := renewals[item.MemberCode]; ok {
 			item.Renewals = list
@@ -117,28 +111,6 @@ func (h *AuthHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
-}
-
-// loadVoucherRedemptions mengelompokkan voucher yang sudah dipakai per
-// member_code. Error (mis. tabel belum dibuat) di-skip agar daftar member
-// tetap tampil.
-func (h *AuthHandler) loadVoucherRedemptions() map[string][]voucherRedemptionResponse {
-	result := map[string][]voucherRedemptionResponse{}
-	rows, err := h.db.Query(`SELECT member_code, voucher_percent, visit_milestone, used_at
-		FROM member_voucher_redemptions ORDER BY visit_milestone`)
-	if err != nil {
-		return result
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var code string
-		var v voucherRedemptionResponse
-		if err := rows.Scan(&code, &v.Percent, &v.VisitMilestone, &v.UsedAt); err != nil {
-			continue
-		}
-		result[code] = append(result[code], v)
-	}
-	return result
 }
 
 // loadRenewals mengelompokkan riwayat perpanjangan per member_code, sudah

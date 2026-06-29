@@ -58,10 +58,19 @@ func main() {
 	mux.HandleFunc("DELETE /api/admin/master/members/{id}", authHandler.DeleteMember)
 	mux.HandleFunc("POST /api/admin/master/members/{id}/follow-up", authHandler.SendMemberFollowUp)
 	mux.HandleFunc("POST /api/admin/master/members/{id}/renew", authHandler.RenewMember)
+	mux.HandleFunc("POST /api/admin/master/members/{id}/vouchers/{milestone}/use", authHandler.RedeemVoucher)
 	mux.HandleFunc("GET /api/admin/transactions/gym", authHandler.ListGymTransactions)
 	mux.HandleFunc("POST /api/admin/transactions/gym", authHandler.CreateGymTransaction)
 	mux.HandleFunc("GET /api/admin/transactions/fnb", authHandler.ListFNBTransactions)
 	mux.HandleFunc("POST /api/admin/transactions/fnb", authHandler.CreateFNBTransaction)
+	// Registrasi member baru via QR (publik, dari HP calon member).
+	mux.HandleFunc("GET /api/register/info", authHandler.RegisterInfo)
+	mux.HandleFunc("POST /api/register/member", authHandler.RegisterMember)
+	// Pembayaran Midtrans (Snap).
+	mux.HandleFunc("POST /api/payment/snap", authHandler.CreateSnapPayment)
+	// Webhook notifikasi Midtrans (publik) — menangkap lunas semua channel.
+	mux.HandleFunc("POST /api/payment/notification", authHandler.PaymentNotification)
+	mux.HandleFunc("GET /api/payment/status", authHandler.CheckPaymentStatus)
 	// Absensi: lookup + check-in publik dari HP member (tanpa login) + daftar kasir.
 	mux.HandleFunc("GET /api/attendance/member", authHandler.LookupMemberForCheckIn)
 	mux.HandleFunc("POST /api/attendance/check-in", authHandler.CheckInAttendance)

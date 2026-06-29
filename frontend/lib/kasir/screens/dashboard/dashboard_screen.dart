@@ -1,18 +1,31 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../controllers/dashboard_controller.dart';
 import '../../constants/app_constants.dart';
 import '../../utils/utils.dart';
 import '../../widgets/index.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({super.key, this.adminStyle = false});
+
+  /// Gaya admin: warna lebih gelap (khas admin) + Ringkasan Transaksi jadi
+  /// grafik donat persentase.
+  final bool adminStyle;
 
   static const Color _neutralText = Color(0xFF111827);
   static const Color _mutedText = Color(0xFF64748B);
   static const Color _softSurface = Color(0xFFF8FAFC);
   static const Color _softBorder = Color(0xFFE2E8F0);
   static const Color _singleAccent = Color(0xFF1F3A5F);
+  static const Color _adminAccent = Color(0xFF071A3D);
+
+  Color get _accent => adminStyle ? _adminAccent : _singleAccent;
+  List<Color> get _heroColors => adminStyle
+      ? const [Color(0xFF050D1F), Color(0xFF0A1E3A), Color(0xFF0E2A4C)]
+      : const [Color(0xFF071A3D), Color(0xFF0B3A7A), Color(0xFF155E9F)];
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +53,7 @@ class DashboardScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (!adminStyle) _buildLogoutBar(),
                           _buildHeroSection(controller, constraints.maxWidth),
                           const SizedBox(height: 18),
                           _buildMetricGrid(controller, metricColumns),
@@ -76,6 +90,63 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _logout() async {
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Keluar dari akun?'),
+        content: const Text(
+          'Anda akan keluar dan kembali ke halaman login.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Get.back(result: true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final preferences = await SharedPreferences.getInstance();
+    for (final key in const [
+      'auth_token',
+      'auth_token_type',
+      'auth_expires_in',
+      'auth_must_change_password',
+      'auth_user_role',
+      'auth_username',
+      'auth_full_name',
+    ]) {
+      await preferences.remove(key);
+    }
+    Get.offAllNamed('/');
+  }
+
+  Widget _buildLogoutBar() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: OutlinedButton.icon(
+          onPressed: _logout,
+          icon: const Icon(Icons.logout_rounded, size: 18),
+          label: const Text('Logout'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFFDC2626),
+            side: const BorderSide(color: Color(0xFFFECACA)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeroSection(
     DashboardController controller,
     double availableWidth,
@@ -87,18 +158,45 @@ class DashboardScreen extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF071A3D), Color(0xFF0B3A7A), Color(0xFF155E9F)],
+          colors: _heroColors,
         ),
       ),
       child: Stack(
         children: [
-          Column(
+          // Gaya admin: latar gambar gym + overlay navy.
+          if (adminStyle) ...[
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/gym/premium-gym-hero.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.centerRight,
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      _adminAccent,
+                      _adminAccent.withValues(alpha: 0.90),
+                      _adminAccent.withValues(alpha: 0.50),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (useSideChart)
@@ -121,37 +219,40 @@ class DashboardScreen extends StatelessWidget {
                     const SizedBox(width: 70),
                     Expanded(
                       flex: 5,
-                      child: _buildWeeklyMemberChart(controller),
+                      child: _buildHeroChart(controller),
                     ),
                   ],
                 )
               else ...[
                 _buildHeroInfo(controller),
                 const SizedBox(height: 16),
-                _buildWeeklyMemberChart(controller),
+                _buildHeroChart(controller),
               ],
-              const SizedBox(height: 16),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: activeRate.clamp(0.0, 1.0).toDouble(),
-                  minHeight: 8,
-                  backgroundColor: Colors.white.withValues(alpha: 0.22),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    Color(0xFFFFC857),
+              if (!adminStyle) ...[
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: activeRate.clamp(0.0, 1.0).toDouble(),
+                    minHeight: 8,
+                    backgroundColor: Colors.white.withValues(alpha: 0.22),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFFFFC857),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '$activeMembers dari $totalMembers member aktif',
-                style: const TextStyle(
-                  color: Color(0xFFE8F4FF),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                const SizedBox(height: 8),
+                Text(
+                  '$activeMembers dari $totalMembers member aktif',
+                  style: const TextStyle(
+                    color: Color(0xFFE8F4FF),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
+              ],
             ],
+            ),
           ),
         ],
       ),
@@ -182,22 +283,26 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'X-FIT Digital Indonesia',
-                    style: TextStyle(
+                    adminStyle
+                        ? 'Dashboard Admin'
+                        : 'X-FIT Digital Indonesia',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    'Ringkasan operasional gym dan penjualan',
-                    style: TextStyle(
+                    adminStyle
+                        ? 'Ringkasan operasional POS Gym hari ini.'
+                        : 'Ringkasan operasional gym dan penjualan',
+                    style: const TextStyle(
                       color: Color(0xFFE8F4FF),
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -208,24 +313,26 @@ class DashboardScreen extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 22),
-        Wrap(
-          spacing: 18,
-          runSpacing: 14,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            _buildHeroValue(
-              'Total Omzet',
-              CurrencyUtils.formatCurrency(
-                controller.totalCombinedRevenue.value,
+        if (!adminStyle) ...[
+          const SizedBox(height: 22),
+          Wrap(
+            spacing: 18,
+            runSpacing: 14,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _buildHeroValue(
+                'Total Omzet',
+                CurrencyUtils.formatCurrency(
+                  controller.totalCombinedRevenue.value,
+                ),
               ),
-            ),
-            _buildHeroValue(
-              'Kehadiran Hari Ini',
-              '${controller.todayAttendanceCount.value} member',
-            ),
-          ],
-        ),
+              _buildHeroValue(
+                'Kehadiran Hari Ini',
+                '${controller.todayAttendanceCount.value} member',
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -352,7 +459,7 @@ class DashboardScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: _softBorder),
                   ),
-                  child: Icon(metric.icon, color: _singleAccent, size: 22),
+                  child: Icon(metric.icon, color: _accent, size: 22),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -401,6 +508,79 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildHeroChart(DashboardController controller) => adminStyle
+      ? _buildTransactionTrendChart(controller)
+      : _buildWeeklyMemberChart(controller);
+
+  // Grafik 2 garis transaksi Gym vs F&B (7 hari) untuk beranda admin.
+  Widget _buildTransactionTrendChart(DashboardController controller) {
+    const gymColor = Color(0xFFFFC857);
+    const fnbColor = Color(0xFF7DD3FC);
+    return Obx(() {
+      final days = controller.trendDays.toList();
+      final gym = controller.gymTrend.toList();
+      final fnb = controller.fnbTrend.toList();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Transaksi 7 Hari',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              _trendLegendDot(gymColor, 'Gym'),
+              const SizedBox(width: 14),
+              _trendLegendDot(fnbColor, 'F&B'),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 150,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: _TwoLineChartPainter(
+                days: days,
+                gym: gym,
+                fnb: fnb,
+                gymColor: gymColor,
+                fnbColor: fnbColor,
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _trendLegendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildWeeklyMemberChart(DashboardController controller) {
     return Obx(() {
       final chartPoints = controller.memberGrowthChart.isEmpty
@@ -408,7 +588,6 @@ class DashboardScreen extends StatelessWidget {
           : controller.memberGrowthChart;
       final selectedPoint = controller.selectedMemberGrowthPoint.value;
       final headerPoint = selectedPoint ?? chartPoints.last;
-      final headerPercentColor = _growthColor(headerPoint.percentChange);
 
       return Container(
         height: 168,
@@ -421,7 +600,7 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 const Expanded(
                   child: Text(
-                    'Pendaftaran 7 Minggu',
+                    'Pendaftaran 7 Hari',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -435,15 +614,15 @@ class DashboardScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      _formatPercentChange(headerPoint.percentChange),
-                      style: TextStyle(
-                        color: headerPercentColor,
-                        fontSize: 13,
+                      '${headerPoint.count}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     Text(
-                      '${headerPoint.count} member baru',
+                      'member baru',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.78),
                         fontSize: 10,
@@ -577,17 +756,6 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${_formatPercentChange(point.percentChange)} minggu ini',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: _growthColor(point.percentChange, dark: true),
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
             '${point.count} member baru',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -600,24 +768,6 @@ class DashboardScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _formatPercentChange(double value) {
-    if (value == 0) return '0%';
-    final prefix = value > 0 ? '+' : '';
-    return '$prefix${value.toStringAsFixed(0)}%';
-  }
-
-  Color _growthColor(double value, {bool dark = false}) {
-    if (value > 0) {
-      return dark ? const Color(0xFF15803D) : const Color(0xFF86EFAC);
-    }
-    if (value < 0) {
-      return dark ? const Color(0xFFB91C1C) : const Color(0xFFFCA5A5);
-    }
-    return dark
-        ? const Color(0xFF475569)
-        : Colors.white.withValues(alpha: 0.80);
   }
 
   Offset _chartPointOffset(
@@ -746,7 +896,7 @@ class DashboardScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(11),
                 border: Border.all(color: _softBorder),
               ),
-              child: Icon(icon, color: _singleAccent, size: 20),
+              child: Icon(icon, color: _accent, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -765,7 +915,7 @@ class DashboardScreen extends StatelessWidget {
             value: progress.clamp(0.0, 1.0).toDouble(),
             minHeight: 7,
             backgroundColor: const Color(0xFFE5E7EB),
-            valueColor: const AlwaysStoppedAnimation<Color>(_singleAccent),
+            valueColor: AlwaysStoppedAnimation<Color>(_accent),
           ),
         ),
       ],
@@ -811,6 +961,7 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildTransactionPanel(DashboardController controller) {
+    if (adminStyle) return _buildTransactionDonutPanel(controller);
     return _buildPanel(
       title: 'Ringkasan Transaksi',
       icon: Icons.receipt_long_rounded,
@@ -829,6 +980,119 @@ class DashboardScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  // Ringkasan Transaksi gaya admin: grafik donat proporsi Gym vs F&B.
+  Widget _buildTransactionDonutPanel(DashboardController controller) {
+    final gym = controller.gymTransactionCount.value;
+    final fnb = controller.fbTransactionCount.value;
+    final total = gym + fnb;
+    final gymPct = total == 0 ? 0 : (gym * 100 / total).round();
+    final fnbPct = total == 0 ? 0 : 100 - gymPct;
+    const gymColor = _adminAccent;
+    const fnbColor = Color(0xFFF59E0B);
+    return _buildPanel(
+      title: 'Ringkasan Transaksi',
+      icon: Icons.donut_large_rounded,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 120,
+            height: 120,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: const Size(120, 120),
+                  painter: _DonutPainter(
+                    gym: gym,
+                    fnb: fnb,
+                    gymColor: gymColor,
+                    fnbColor: fnbColor,
+                    emptyColor: _softBorder,
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$total',
+                      style: const TextStyle(
+                        color: _neutralText,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Text(
+                      'transaksi',
+                      style: TextStyle(
+                        color: _mutedText,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDonutLegend(gymColor, 'Transaksi Gym', gym, gymPct),
+                const SizedBox(height: 14),
+                _buildDonutLegend(fnbColor, 'Transaksi M&M', fnb, fnbPct),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDonutLegend(Color color, String label, int count, int pct) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: _neutralText,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Text(
+          '$count',
+          style: const TextStyle(
+            color: _neutralText,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '($pct%)',
+          style: const TextStyle(
+            color: _mutedText,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
     );
   }
 
@@ -854,7 +1118,7 @@ class DashboardScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _softBorder),
             ),
-            child: Icon(icon, color: _singleAccent, size: 22),
+            child: Icon(icon, color: _accent, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1133,4 +1397,145 @@ class _DashboardMetric {
     required this.subtitle,
     required this.icon,
   });
+}
+
+/// Donat 2 segmen (Gym vs F&B) untuk Ringkasan Transaksi gaya admin.
+class _DonutPainter extends CustomPainter {
+  _DonutPainter({
+    required this.gym,
+    required this.fnb,
+    required this.gymColor,
+    required this.fnbColor,
+    required this.emptyColor,
+  });
+
+  final int gym;
+  final int fnb;
+  final Color gymColor;
+  final Color fnbColor;
+  final Color emptyColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = gym + fnb;
+    final stroke = size.width * 0.20;
+    final rect = Rect.fromCircle(
+      center: Offset(size.width / 2, size.height / 2),
+      radius: (size.width - stroke) / 2,
+    );
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.butt;
+
+    if (total == 0) {
+      paint.color = emptyColor;
+      canvas.drawArc(rect, 0, 2 * pi, false, paint);
+      return;
+    }
+
+    const start = -pi / 2;
+    final gymSweep = 2 * pi * gym / total;
+    paint.color = gymColor;
+    canvas.drawArc(rect, start, gymSweep, false, paint);
+    paint.color = fnbColor;
+    canvas.drawArc(rect, start + gymSweep, 2 * pi - gymSweep, false, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutPainter old) =>
+      old.gym != gym || old.fnb != fnb;
+}
+
+/// Grafik 2 garis (Gym & F&B) di atas latar navy hero admin.
+class _TwoLineChartPainter extends CustomPainter {
+  _TwoLineChartPainter({
+    required this.days,
+    required this.gym,
+    required this.fnb,
+    required this.gymColor,
+    required this.fnbColor,
+  });
+
+  final List<DateTime> days;
+  final List<int> gym;
+  final List<int> fnb;
+  final Color gymColor;
+  final Color fnbColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = days.length;
+    if (n == 0) return;
+    const bottomPad = 22.0;
+    final chartHeight = size.height - bottomPad;
+    final maxVal = [...gym, ...fnb, 1].reduce(max).toDouble();
+    final dx = n <= 1 ? 0.0 : size.width / (n - 1);
+
+    Offset pointFor(List<int> series, int i) {
+      final value = i < series.length ? series[i] : 0;
+      final y = chartHeight - (value / maxVal) * (chartHeight - 10) - 5;
+      return Offset(dx * i, y);
+    }
+
+    // Garis bantu horizontal.
+    final grid = Paint()
+      ..color = Colors.white.withValues(alpha: 0.12)
+      ..strokeWidth = 1;
+    for (var g = 0; g <= 2; g++) {
+      final y = chartHeight * g / 2;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+    }
+
+    void drawSeries(List<int> series, Color color) {
+      final path = Path();
+      for (var i = 0; i < n; i++) {
+        final p = pointFor(series, i);
+        if (i == 0) {
+          path.moveTo(p.dx, p.dy);
+        } else {
+          path.lineTo(p.dx, p.dy);
+        }
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+      final dot = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+      for (var i = 0; i < n; i++) {
+        canvas.drawCircle(pointFor(series, i), 3, dot);
+      }
+    }
+
+    drawSeries(gym, gymColor);
+    drawSeries(fnb, fnbColor);
+
+    // Label tanggal (angka hari) di bawah.
+    for (var i = 0; i < n; i++) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${days[i].day}',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final x = (dx * i - tp.width / 2).clamp(0.0, size.width - tp.width);
+      tp.paint(canvas, Offset(x, chartHeight + 6));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TwoLineChartPainter old) =>
+      old.gym != gym || old.fnb != fnb;
 }

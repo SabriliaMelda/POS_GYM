@@ -1,17 +1,13 @@
-import 'package:barcode/barcode.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/food_beverage_transaction_controller.dart';
 import '../../models/index.dart';
-import '../../utils/qris_generator.dart';
+import '../../models/member_voucher.dart';
+import '../../utils/receipt.dart';
 import '../../utils/utils.dart';
-
-/// QRIS statis contoh (MODE DEMO) — dipakai bila `QRIS_STATIC` belum diisi di
-/// .env. Ganti dengan QRIS statis asli milik gym agar dapat dibayar sungguhan.
-const _demoStaticQris =
-    '0002010102115204000053033605802ID5909X-FIT GYM6007JAKARTA';
+import '../../widgets/midtrans_payment.dart';
+import '../../widgets/history_date_filter.dart';
 
 class FoodBeverageTransactionScreen extends StatefulWidget {
   const FoodBeverageTransactionScreen({super.key});
@@ -32,6 +28,12 @@ class _FoodBeverageTransactionScreenState
   String _query = '';
   String _selectedCategory = 'Semua';
   bool _showCartPanel = false;
+  bool _showHistoryPanel = false;
+
+  // Filter tanggal panel riwayat: 'all' | 'today' | 'date' | 'month'.
+  String _histFilter = 'all';
+  DateTime _histDate = DateTime.now();
+  DateTime _histMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   void initState() {
@@ -84,16 +86,24 @@ class _FoodBeverageTransactionScreenState
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: _showHistoryPanel
+                ? 'Tutup riwayat'
+                : 'Riwayat transaksi F&B',
+            onPressed: () => _toggleHistory(context),
+            color: Colors.white,
+            icon: Icon(
+              _showHistoryPanel
+                  ? Icons.view_agenda_rounded
+                  : Icons.history_rounded,
+            ),
+          ),
           Obx(
             () => Padding(
               padding: const EdgeInsets.only(right: 12),
-              child: IconButton.filled(
+              child: IconButton(
                 tooltip: _showCartPanel ? 'Tutup keranjang' : 'Lihat keranjang',
-                style: IconButton.styleFrom(
-                  foregroundColor: _dark,
-                  backgroundColor: const Color(0xFFFFC857),
-                  minimumSize: const Size(44, 44),
-                ),
+                color: Colors.white,
                 onPressed: () => _toggleCart(context),
                 icon: Badge(
                   isLabelVisible: _controller.cartItems.isNotEmpty,
@@ -139,39 +149,54 @@ class _FoodBeverageTransactionScreenState
 
           return LayoutBuilder(
             builder: (context, constraints) {
-              final useSplit = _showCartPanel && constraints.maxWidth >= 760;
+              final wide = constraints.maxWidth >= 760;
+              final cartSplit = _showCartPanel && wide;
+              final historySplit = _showHistoryPanel && wide;
               final catalog = _buildCatalog(
                 categories,
                 filteredItems,
-                showBottomCartBar: !useSplit,
+                showBottomCartBar: !cartSplit,
               );
 
-              if (!useSplit) return catalog;
+              if (cartSplit) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: AnimatedSlide(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic,
+                        offset: const Offset(-0.02, 0),
+                        child: catalog,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: AnimatedSlide(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic,
+                        offset: Offset.zero,
+                        child: _buildCartPanel(),
+                      ),
+                    ),
+                  ],
+                );
+              }
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: AnimatedSlide(
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOutCubic,
-                      offset: const Offset(-0.02, 0),
-                      child: catalog,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: AnimatedSlide(
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOutCubic,
-                      offset: Offset.zero,
-                      child: _buildCartPanel(),
-                    ),
-                  ),
-                ],
-              );
+              if (historySplit) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(flex: 3, child: catalog),
+                    const SizedBox(width: 8),
+                    Expanded(flex: 2, child: _buildHistoryPanel()),
+                  ],
+                );
+              }
+
+              return catalog;
             },
           );
         }),
@@ -361,10 +386,136 @@ class _FoodBeverageTransactionScreenState
 
   void _toggleCart(BuildContext context) {
     if (MediaQuery.sizeOf(context).width >= 760) {
-      setState(() => _showCartPanel = !_showCartPanel);
+      setState(() {
+        _showCartPanel = !_showCartPanel;
+        if (_showCartPanel) _showHistoryPanel = false;
+      });
       return;
     }
     _showCart(context);
+  }
+
+  void _toggleHistory(BuildContext context) {
+    _controller.loadTransactions();
+    if (MediaQuery.sizeOf(context).width >= 760) {
+      setState(() {
+        _showHistoryPanel = !_showHistoryPanel;
+        if (_showHistoryPanel) _showCartPanel = false;
+      });
+      return;
+    }
+    _showHistorySheet();
+  }
+
+  Widget _buildHistoryPanel() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(4, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14071A3D),
+            blurRadius: 22,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(
+            color: _dark,
+            padding: const EdgeInsets.fromLTRB(16, 12, 6, 12),
+            child: Row(
+              children: [
+                const Icon(Icons.history_rounded, color: Color(0xFFFFC857)),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Riwayat F&B',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        'Ketuk transaksi untuk cetak struk',
+                        style: TextStyle(
+                          color: Color(0xFFC8DDF2),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Muat ulang',
+                  onPressed: _controller.loadTransactions,
+                  color: Colors.white,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+                IconButton(
+                  tooltip: 'Tutup',
+                  onPressed: () => setState(() => _showHistoryPanel = false),
+                  color: Colors.white,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+            child: HistoryDateFilterBar(
+              mode: _histFilter,
+              date: _histDate,
+              month: _histMonth,
+              accent: _dark,
+              onChanged: (m, d, mo) => setState(() {
+                _histFilter = m;
+                _histDate = d;
+                _histMonth = mo;
+              }),
+            ),
+          ),
+          Expanded(
+            child: Obx(() {
+              final txs = filterByDate(
+                _controller.transactions.toList(),
+                (t) => t.transactionDate,
+                _histFilter,
+                _histDate,
+                _histMonth,
+              );
+              if (txs.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(28),
+                    child: Text(
+                      'Tidak ada transaksi pada periode ini',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
+                  ),
+                );
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.all(14),
+                itemCount: txs.length,
+                separatorBuilder: (_, _) =>
+                    const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                itemBuilder: (context, index) => _buildHistoryTile(txs[index]),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildCartPanel() {
@@ -516,6 +667,7 @@ class _FoodBeverageTransactionScreenState
               ),
               child: Column(
                 children: [
+                  _buildVoucherBanner(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -547,7 +699,7 @@ class _FoodBeverageTransactionScreenState
                           ),
                           Text(
                             CurrencyUtils.formatCurrencySimple(
-                              _controller.totalAmount.value,
+                              _payableAmount,
                             ),
                             style: const TextStyle(
                               color: _dark,
@@ -762,13 +914,175 @@ class _FoodBeverageTransactionScreenState
                 fontWeight: FontWeight.w700,
               ),
             ),
+            if (selectedMember != null) _buildMemberVouchers(selectedMember),
           ],
         ],
       ),
     );
   }
 
-  void _continuePayment() {
+  /// Voucher F&B aktif milik [member] (dipakai langsung dari layar F&B).
+  Widget _buildMemberVouchers(Member member) {
+    final vouchers = availableVouchers(member);
+    final appliedMilestone = _controller.voucherMilestone.value;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Icon(
+              Icons.confirmation_number_rounded,
+              size: 15,
+              color: _dark,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Voucher F&B tersedia (${vouchers.length})',
+              style: const TextStyle(
+                color: _dark,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (vouchers.isEmpty)
+          const Text(
+            'Tidak ada voucher aktif untuk member ini.',
+            style: TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final v in vouchers)
+                _voucherChip(
+                  member,
+                  v,
+                  applied: appliedMilestone == v.visits,
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _voucherChip(
+    Member member,
+    MemberVoucherStatus v, {
+    required bool applied,
+  }) {
+    const green = Color(0xFF15803D);
+    return InkWell(
+      onTap: () => applied
+          ? _controller.clearVoucher()
+          : _controller.applyVoucher(member, v.visits, v.percent),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: applied ? green : const Color(0xFFE7F6EC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: green),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              applied
+                  ? Icons.check_circle_rounded
+                  : Icons.confirmation_number_rounded,
+              size: 14,
+              color: applied ? Colors.white : green,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'Diskon ${v.percent}% • ${v.visits}x',
+              style: TextStyle(
+                color: applied ? Colors.white : green,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Nilai yang dibayar: total setelah diskon voucher (bila ada).
+  double get _payableAmount => _controller.voucherPercent.value > 0
+      ? _controller.finalAmount.value
+      : _controller.totalAmount.value;
+
+  // Banner voucher yang sedang dipakai (muncul di keranjang). Reaktif via Obx
+  // induknya.
+  Widget _buildVoucherBanner() {
+    final member = _controller.voucherMember.value;
+    if (member == null) return const SizedBox.shrink();
+    final pct = _controller.voucherPercent.value;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE7F6EC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF15803D)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.confirmation_number_rounded,
+            color: Color(0xFF15803D),
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Voucher diskon $pct% — ${member.name}',
+                  style: const TextStyle(
+                    color: Color(0xFF15803D),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  'Potongan ${CurrencyUtils.formatCurrencySimple(_controller.discountAmount.value)}',
+                  style: const TextStyle(
+                    color: Color(0xFF166534),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Batalkan voucher',
+            onPressed: _controller.clearVoucher,
+            icon: const Icon(
+              Icons.close_rounded,
+              size: 16,
+              color: Color(0xFF15803D),
+            ),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _continuePayment() async {
     if (_controller.cartItems.isEmpty) {
       Get.snackbar('Keranjang Kosong', 'Tambahkan menu sebelum pembayaran.');
       return;
@@ -778,206 +1092,22 @@ class _FoodBeverageTransactionScreenState
       Get.snackbar('Pilih Member', 'Pilih nama member sebelum pembayaran.');
       return;
     }
-    _showQrisPayment(_controller.totalAmount.value);
-  }
-
-  /// Menampilkan QRIS dinamis bernominal [amount]. Saat pelanggan memindai,
-  /// nominal otomatis muncul di aplikasi pembayaran mereka.
-  void _showQrisPayment(double amount) {
-    final configured = dotenv.maybeGet('QRIS_STATIC')?.trim() ?? '';
-    final isDemo = configured.isEmpty;
-    final payload = QrisGenerator.buildDynamic(
-      isDemo ? _demoStaticQris : configured,
-      amount,
+    final amount = _payableAmount;
+    final paid = await showMidtransPayment(
+      amount: amount.round(),
+      label: 'FNB',
     );
-    final isMember = _controller.isMemberCustomer.value;
-    final memberName = _controller.selectedMember.value?.name;
-
-    Get.dialog(
-      Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        insetPadding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF071A3D), Color(0xFF155E9F)],
-                    ),
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.qr_code_2_rounded,
-                        color: Colors.white,
-                        size: 30,
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Pembayaran QRIS',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isMember ? 'Member: ${memberName ?? '-'}' : 'Non-member',
-                        style: const TextStyle(
-                          color: Color(0xFFE8F4FF),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: SizedBox(
-                          width: 210,
-                          height: 210,
-                          child: CustomPaint(painter: _QrisPainter(payload)),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Total Pembayaran',
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        CurrencyUtils.formatCurrencySimple(amount),
-                        style: const TextStyle(
-                          color: Color(0xFF071A3D),
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Pelanggan scan QR ini — nominal otomatis muncul di '
-                        'aplikasi pembayaran mereka.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
-                      ),
-                      if (isDemo) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEF3C7),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFFCD34D)),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.info_outline_rounded,
-                                size: 18,
-                                color: Color(0xFF92400E),
-                              ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Mode demo. Isi QRIS_STATIC di .env dengan '
-                                  'QRIS asli gym agar bisa dibayar sungguhan.',
-                                  style: TextStyle(
-                                    color: Color(0xFF92400E),
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Get.back(),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                            foregroundColor: const Color(0xFF475569),
-                          ),
-                          child: const Text(
-                            'Batal',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            final error = await _controller.checkout(
-                              paymentMethod: 'QRIS',
-                            );
-                            if (error != null) {
-                              Get.snackbar('Gagal Menyimpan', error);
-                              return;
-                            }
-                            Get.back();
-                            if (mounted) setState(() => _showCartPanel = false);
-                            Get.snackbar(
-                              'Pembayaran Selesai',
-                              'Transaksi F&B '
-                                  '${CurrencyUtils.formatCurrencySimple(amount)} '
-                                  'tersimpan ke database.',
-                            );
-                          },
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF16A34A),
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                          ),
-                          icon: const Icon(
-                            Icons.check_circle_outline_rounded,
-                            size: 18,
-                          ),
-                          label: const Text(
-                            'Pembayaran Selesai',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    if (!paid) return;
+    final error = await _controller.checkout(paymentMethod: 'QRIS');
+    if (error != null) {
+      Get.snackbar('Gagal Menyimpan', error);
+      return;
+    }
+    if (mounted) setState(() => _showCartPanel = false);
+    Get.snackbar(
+      'Pembayaran Selesai',
+      'Transaksi F&B ${CurrencyUtils.formatCurrencySimple(amount)} '
+          'tersimpan ke database.',
     );
   }
 
@@ -1039,7 +1169,7 @@ class _FoodBeverageTransactionScreenState
                   const SizedBox(height: 2),
                   Text(
                     CurrencyUtils.formatCurrencySimple(
-                      _controller.totalAmount.value,
+                      _payableAmount,
                     ),
                     style: const TextStyle(
                       color: Colors.white,
@@ -1195,6 +1325,7 @@ class _FoodBeverageTransactionScreenState
                     ),
                     child: Column(
                       children: [
+                        _buildVoucherBanner(),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -1207,7 +1338,7 @@ class _FoodBeverageTransactionScreenState
                             ),
                             Text(
                               CurrencyUtils.formatCurrencySimple(
-                                _controller.totalAmount.value,
+                                _payableAmount,
                               ),
                               style: const TextStyle(
                                 color: _dark,
@@ -1258,6 +1389,213 @@ class _FoodBeverageTransactionScreenState
           ),
         ),
       ),
+    );
+  }
+
+  void _showHistorySheet() {
+    _controller.loadTransactions();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                margin: const EdgeInsets.only(top: 10, bottom: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Riwayat Transaksi F&B',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: _dark,
+                            ),
+                          ),
+                          Text(
+                            'Penjualan makanan & minuman terbaru',
+                            style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Muat ulang',
+                      onPressed: _controller.loadTransactions,
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Color(0xFFE2E8F0)),
+              Flexible(
+                child: Obx(() {
+                  final txs = _controller.transactions;
+                  if (txs.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(
+                        child: Text(
+                          'Belum ada transaksi F&B',
+                          style: TextStyle(color: Color(0xFF64748B)),
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: txs.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                    itemBuilder: (context, index) =>
+                        _buildHistoryTile(txs[index]),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryTile(FoodBeverageTransaction tx) {
+    final qty = tx.items.fold<int>(0, (sum, it) => sum + it.quantity);
+    final names = tx.items.map((it) => it.itemName).join(', ');
+    final desc = names.isEmpty ? '${tx.items.length} item' : '$qty item: $names';
+    return InkWell(
+      onTap: () => _printReceipt(tx),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F4FF),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.restaurant_rounded,
+                color: _primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tx.memberName ?? 'Non-member',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _dark,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    desc,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${tx.transactionId} · ${DateTimeUtils.formatDateTime(tx.transactionDate)}',
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  CurrencyUtils.formatCurrencySimple(tx.finalAmount),
+                  style: const TextStyle(
+                    color: _dark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                IconButton(
+                  tooltip: 'Cetak struk',
+                  onPressed: () => _printReceipt(tx),
+                  icon: const Icon(Icons.receipt_long_rounded, size: 24),
+                  color: _primary,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Mencetak struk transaksi F&B (memakai util bersama).
+  Future<void> _printReceipt(FoodBeverageTransaction tx) async {
+    await printReceipt(
+      txCode: tx.transactionId,
+      date: tx.transactionDate,
+      customer: tx.memberName ?? 'Non-member',
+      paymentMethod: tx.paymentMethod,
+      lines: tx.items
+          .map(
+            (it) => ReceiptLine(
+              name: it.itemName,
+              qty: it.quantity,
+              price: it.price,
+            ),
+          )
+          .toList(),
+      total: tx.finalAmount,
     );
   }
 
@@ -1832,38 +2170,4 @@ class _QuantityButton extends StatelessWidget {
       disabledColor: const Color(0xFFCBD5E1),
     );
   }
-}
-
-/// Menggambar string QRIS sebagai kode QR (memakai paket `barcode`).
-class _QrisPainter extends CustomPainter {
-  _QrisPainter(this.data);
-
-  final String data;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final elements = Barcode.qrCode().make(
-      data,
-      width: size.width,
-      height: size.height,
-    );
-    final paint = Paint()..color = Colors.black;
-    for (final element in elements) {
-      if (element is BarcodeBar && element.black) {
-        canvas.drawRect(
-          Rect.fromLTWH(
-            element.left,
-            element.top,
-            element.width,
-            element.height,
-          ),
-          paint,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _QrisPainter oldDelegate) =>
-      oldDelegate.data != data;
 }

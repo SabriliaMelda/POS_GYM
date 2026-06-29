@@ -1,0 +1,96 @@
+-- =====================================================================
+-- Voucher F&B: lifecycle Aktif / Dipakai / Hangus + kadaluwarsa 30 hari
+-- MySQL 8+
+-- Jalankan SEKALI setelah module/kunjungan-voucher.txt.
+--
+-- Konsep:
+--   Tiap 50 kunjungan member dapat 1 voucher. Persen berulang tiap 6 milestone
+--   (300 kunjungan): 50x=10%, 100x=25%, 150x=35%, 200x=45%, 250x=55%, 300x=70%.
+--   Voucher AKTIF sejak didapat dan bisa diklaim selama 30 HARI. Setelah itu
+--   bila belum dipakai -> HANGUS. Bila ditukar kasir -> DIPAKAI (used_at).
+--
+--   Sumber kebenaran voucher dipindah ke tabel `member_vouchers` ini
+--   (menggantikan perhitungan on-the-fly). Kolom *_notified_at dipakai backend
+--   untuk follow-up email OTOMATIS agar tidak terkirim dua kali.
+-- =====================================================================
+
+USE `pos_gym`;
+
+-- 1) Tabel voucher (lifecycle).
+CREATE TABLE IF NOT EXISTS `member_vouchers` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `member_code` VARCHAR(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `visit_milestone` INT UNSIGNED NOT NULL,
+  `voucher_percent` TINYINT UNSIGNED NOT NULL,
+  `activated_at` DATE NOT NULL,
+  `expires_at` DATE NOT NULL,
+  `used_at` DATE NULL DEFAULT NULL,
+  `active_notified_at` DATETIME NULL DEFAULT NULL,
+  `expiry_notified_at` DATETIME NULL DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_member_voucher` (`member_code`, `visit_milestone`),
+  KEY `idx_member_vouchers_member` (`member_code`),
+  CONSTRAINT `fk_member_vouchers_member` FOREIGN KEY (`member_code`)
+    REFERENCES `members` (`member_code`) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2) Backfill: tiap voucher yang SUDAH didapat tiap member -> AKTIF hari ini.
+--    *_notified_at diisi NOW() supaya email otomatis TIDAK dikirim untuk
+--    voucher lama (hanya voucher baru sesudah ini yang memicu email).
+INSERT IGNORE INTO `member_vouchers`
+  (`member_code`, `visit_milestone`, `voucher_percent`, `activated_at`,
+   `expires_at`, `active_notified_at`, `expiry_notified_at`)
+WITH RECURSIVE seq AS (
+  SELECT 1 AS idx
+  UNION ALL
+  SELECT idx + 1 FROM seq WHERE idx < 50
+)
+SELECT
+  m.`member_code`,
+  s.idx * 50,
+  ELT(((s.idx - 1) % 6) + 1, 10, 25, 35, 45, 55, 70),
+  CURDATE(),
+  DATE_ADD(CURDATE(), INTERVAL 30 DAY),
+  NOW(),
+  NOW()
+FROM `members` m
+JOIN seq s ON s.idx <= FLOOR(m.`total_visits` / 50);
+
+-- 3) Migrasi pemakaian lama (member_voucher_redemptions) -> used_at.
+UPDATE `member_vouchers` mv
+JOIN `member_voucher_redemptions` r
+  ON r.`member_code` = mv.`member_code`
+ AND r.`visit_milestone` = mv.`visit_milestone`
+SET mv.`used_at` = r.`used_at`;
+
+-- 4) Demo Sabrilia (MBR-58310427): 150 kunjungan -> 3 voucher dengan
+--    ketiga status sekaligus: DIPAKAI, HANGUS, dan AKTIF.
+--    Voucher 70% (aktif) sengaja active_notified_at = NULL agar saat backend
+--    menyala, follow-up email "voucher aktif" terkirim SATU kali (demo otomatis).
+UPDATE `members` SET `total_visits` = 150 WHERE `member_code` = 'MBR-58310427';
+DELETE FROM `member_vouchers` WHERE `member_code` = 'MBR-58310427';
+INSERT INTO `member_vouchers`
+  (`member_code`, `visit_milestone`, `voucher_percent`, `activated_at`,
+   `expires_at`, `used_at`, `active_notified_at`, `expiry_notified_at`)
+VALUES
+  -- DIPAKAI: ditukar 12 hari lalu.
+  ('MBR-58310427', 50, 10, DATE_SUB(CURDATE(), INTERVAL 14 DAY),
+     DATE_ADD(DATE_SUB(CURDATE(), INTERVAL 14 DAY), INTERVAL 30 DAY),
+     DATE_SUB(CURDATE(), INTERVAL 12 DAY), NOW(), NOW()),
+  -- HANGUS: aktif 40 hari lalu, lewat 30 hari, tak dipakai.
+  ('MBR-58310427', 100, 25, DATE_SUB(CURDATE(), INTERVAL 40 DAY),
+     DATE_ADD(DATE_SUB(CURDATE(), INTERVAL 40 DAY), INTERVAL 30 DAY),
+     NULL, NOW(), NOW()),
+  -- AKTIF: aktif 5 hari lalu, masih bisa diklaim 25 hari lagi.
+  ('MBR-58310427', 150, 35, DATE_SUB(CURDATE(), INTERVAL 5 DAY),
+     DATE_ADD(DATE_SUB(CURDATE(), INTERVAL 5 DAY), INTERVAL 30 DAY),
+     NULL, NULL, NOW());
+
+-- Verifikasi:
+-- SELECT member_code, visit_milestone, voucher_percent, activated_at,
+--        expires_at, used_at,
+--        CASE WHEN used_at IS NOT NULL THEN 'DIPAKAI'
+--             WHEN expires_at < CURDATE() THEN 'HANGUS'
+--             ELSE 'AKTIF' END AS status
+-- FROM member_vouchers WHERE member_code = 'MBR-58310427' ORDER BY visit_milestone;

@@ -30,39 +30,44 @@ class MemberManagementScreen extends StatelessWidget {
         child: Obx(
           () => controller.isLoading.value
               ? const LoadingWidget(message: 'Memuat data member...')
-              : RefreshIndicator(
-                  onRefresh: () => controller.loadMembers(),
-                  child: CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverToBoxAdapter(child: _buildHeader(controller)),
-                      SliverToBoxAdapter(child: _buildSearchBar(controller)),
-                      SliverToBoxAdapter(child: _buildFilterChips(controller)),
-                      if (controller.filteredMembers.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: EmptyStateWidget(
-                            title: 'Member Tidak Ditemukan',
-                            subtitle:
-                                'Data member akan muncul setelah scan QR dan pembayaran berhasil',
-                            icon: Icons.person_search_rounded,
-                          ),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                          sliver: SliverList.separated(
-                            itemCount: controller.filteredMembers.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: 12),
-                            itemBuilder: (context, index) {
-                              final member = controller.filteredMembers[index];
-                              return _buildMemberCard(member, controller);
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
+              : Column(
+                  children: [
+                    // Bagian atas tetap (tidak ikut scroll).
+                    _buildHeader(controller),
+                    _buildSearchBar(controller),
+                    _buildFilterChips(controller),
+                    // Hanya daftar member yang menggulir.
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: () => controller.loadMembers(),
+                        child: controller.filteredMembers.isEmpty
+                            ? ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: const [
+                                  SizedBox(height: 60),
+                                  EmptyStateWidget(
+                                    title: 'Member Tidak Ditemukan',
+                                    subtitle:
+                                        'Data member akan muncul setelah scan QR dan pembayaran berhasil',
+                                    icon: Icons.person_search_rounded,
+                                  ),
+                                ],
+                              )
+                            : ListView.separated(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                                itemCount: controller.filteredMembers.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final member =
+                                      controller.filteredMembers[index];
+                                  return _buildMemberCard(member, controller);
+                                },
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
         ),
       ),
@@ -520,13 +525,17 @@ class MemberManagementScreen extends StatelessWidget {
     Member member,
     MemberManagementController controller,
   ) {
+    // Hanya bisa diperpanjang mulai H-7 sebelum masa paket berakhir.
+    final canRenewNow = MemberManagementController.isRenewalDue(member);
     return FilledButton.tonalIcon(
-      onPressed: () => openRenewalFlow(member),
+      onPressed: canRenewNow ? () => openRenewalFlow(member) : null,
       icon: const Icon(Icons.autorenew_rounded, size: 18),
-      label: const Text('Perpanjang'),
+      label: Text(canRenewNow ? 'Perpanjang' : 'Perpanjang (mulai H-7)'),
       style: FilledButton.styleFrom(
         backgroundColor: _softAccent,
         foregroundColor: _accent,
+        disabledBackgroundColor: const Color(0xFFEEF1F5),
+        disabledForegroundColor: const Color(0xFF94A3B8),
         visualDensity: VisualDensity.compact,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),

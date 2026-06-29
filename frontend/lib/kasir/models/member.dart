@@ -1,21 +1,42 @@
-class MemberVoucherRedemption {
-  const MemberVoucherRedemption({
+/// Voucher F&B milik member dengan status lifecycle dari backend.
+/// status: 'active' (aktif, bisa dipakai) | 'used' (dipakai) | 'expired' (hangus).
+class MemberVoucher {
+  const MemberVoucher({
     required this.percent,
     required this.visitMilestone,
+    required this.activatedAt,
+    required this.expiresAt,
     required this.usedAt,
+    required this.status,
   });
 
   final int percent;
   final int visitMilestone;
-  final DateTime usedAt;
+  final DateTime activatedAt;
+  final DateTime expiresAt;
+  final DateTime? usedAt;
+  final String status;
 
-  factory MemberVoucherRedemption.fromApiJson(Map<String, dynamic> json) {
-    return MemberVoucherRedemption(
+  bool get used => status == 'used';
+  bool get expired => status == 'expired';
+  bool get active => status == 'active';
+
+  factory MemberVoucher.fromApiJson(Map<String, dynamic> json) {
+    DateTime parseDate(dynamic value) =>
+        DateTime.tryParse(value?.toString() ?? '')?.toLocal() ?? DateTime.now();
+    DateTime? parseNullableDate(dynamic value) {
+      final text = value?.toString() ?? '';
+      if (text.isEmpty) return null;
+      return DateTime.tryParse(text)?.toLocal();
+    }
+
+    return MemberVoucher(
       percent: (json['percent'] as num?)?.toInt() ?? 0,
       visitMilestone: (json['visit_milestone'] as num?)?.toInt() ?? 0,
-      usedAt:
-          DateTime.tryParse(json['used_at']?.toString() ?? '')?.toLocal() ??
-          DateTime.now(),
+      activatedAt: parseDate(json['activated_at']),
+      expiresAt: parseDate(json['expires_at']),
+      usedAt: parseNullableDate(json['used_at']),
+      status: json['status']?.toString() ?? 'active',
     );
   }
 }
@@ -99,7 +120,7 @@ class Member {
   final bool isActive;
   final String? photoPath;
   final int totalVisits;
-  final List<MemberVoucherRedemption> voucherRedemptions;
+  final List<MemberVoucher> vouchers;
   final List<MemberRenewal> renewals;
   final List<MemberFollowUp> followUps;
   final DateTime createdAt;
@@ -121,7 +142,7 @@ class Member {
     required this.isActive,
     this.photoPath,
     this.totalVisits = 0,
-    this.voucherRedemptions = const [],
+    this.vouchers = const [],
     this.renewals = const [],
     this.followUps = const [],
     required this.createdAt,
@@ -178,9 +199,9 @@ class Member {
     final vouchers =
         (json['vouchers'] as List?)
             ?.whereType<Map<String, dynamic>>()
-            .map(MemberVoucherRedemption.fromApiJson)
+            .map(MemberVoucher.fromApiJson)
             .toList() ??
-        const <MemberVoucherRedemption>[];
+        const <MemberVoucher>[];
     final renewals =
         (json['renewals'] as List?)
             ?.whereType<Map<String, dynamic>>()
@@ -212,7 +233,7 @@ class Member {
       isActive: active == true || active == 1,
       photoPath: json['photo_path']?.toString(),
       totalVisits: (json['total_visits'] as num?)?.toInt() ?? 0,
-      voucherRedemptions: vouchers,
+      vouchers: vouchers,
       renewals: renewals,
       followUps: followUps,
       createdAt: parseDate(json['created_at']),

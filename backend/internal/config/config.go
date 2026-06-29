@@ -28,6 +28,10 @@ type Config struct {
 	SMTPPassword       string
 	SMTPFrom           string
 	SMTPFromName       string
+
+	MidtransServerKey    string
+	MidtransClientKey    string
+	MidtransIsProduction bool
 }
 
 func Load() (Config, error) {
@@ -50,6 +54,10 @@ func Load() (Config, error) {
 		SMTPPassword: env("SMTP_PASSWORD", ""),
 		SMTPFrom:     env("SMTP_FROM", ""),
 		SMTPFromName: env("SMTP_FROM_NAME", "X-FIT Digital Indonesia"),
+
+		MidtransServerKey:    env("MIDTRANS_SERVER_KEY", ""),
+		MidtransClientKey:    env("MIDTRANS_CLIENT_KEY", ""),
+		MidtransIsProduction: env("MIDTRANS_IS_PRODUCTION", "false") == "true",
 	}
 
 	// SMTP_FROM default mengikuti akun pengirim jika tidak diisi terpisah.

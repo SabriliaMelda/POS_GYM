@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'admin/screens/admin_main_screen.dart';
 import 'admin/screens/dashboard/admin_dashboard_screen.dart';
@@ -6,18 +7,25 @@ import 'admin/screens/reports/reports_screen.dart';
 import 'auth/auth_service.dart';
 import 'auth/login_screen.dart';
 import 'kasir/constants/app_constants.dart';
+import 'kasir/controllers/kasir_shell_controller.dart';
 import 'kasir/screens/dashboard/dashboard_screen.dart';
 import 'kasir/screens/member_management/member_management_screen.dart';
 import 'kasir/screens/gym_transaction/gym_transaction_screen.dart';
 import 'kasir/screens/food_beverage_transaction/food_beverage_transaction_screen.dart';
 import 'kasir/screens/attendance/attendance_screen.dart';
 import 'kasir/screens/attendance/member_check_in_screen.dart';
+import 'kasir/screens/registration/member_register_screen.dart';
 import 'kasir/screens/transaction_history/transaction_history_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-   await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: ".env");
+  // Kunci orientasi ke landscape (perangkat mobile/tablet).
+  await SystemChrome.setPreferredOrientations(const [
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
   runApp(const MyApp());
 }
 
@@ -52,7 +60,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
+  final KasirShellController _shell = Get.put(KasirShellController());
 
   final List<Widget> _screens = [
     const DashboardScreen(),
@@ -65,16 +73,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        items: [
+    return Obx(() {
+      final selectedIndex = _shell.tabIndex.value;
+      return Scaffold(
+        body: _screens[selectedIndex],
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: selectedIndex,
+          onTap: _shell.goTo,
+          items: [
           const BottomNavigationBarItem(
             icon: Icon(Icons.dashboard),
             label: 'Beranda',
@@ -113,8 +119,9 @@ class _HomeScreenState extends State<HomeScreen> {
           fontWeight: FontWeight.w600,
         ),
         elevation: 12,
-      ),
-    );
+        ),
+      );
+    });
   }
 }
 
@@ -138,6 +145,7 @@ List<GetPage> getRoutes({AuthRepository? authRepository}) => [
   ),
   GetPage(name: '/attendance', page: () => const AttendanceScreen()),
   GetPage(name: '/member-check-in', page: () => const MemberCheckInScreen()),
+  GetPage(name: '/member-register', page: () => const MemberRegisterScreen()),
   GetPage(
     name: '/transaction-history',
     page: () => const TransactionHistoryScreen(),

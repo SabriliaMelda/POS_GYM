@@ -3,8 +3,12 @@ import 'package:get/get.dart';
 import '../../controllers/gym_transaction_controller.dart';
 import '../../controllers/member_management_controller.dart';
 import '../../models/index.dart';
+import '../../utils/receipt.dart';
 import '../../utils/utils.dart';
 import '../../widgets/index.dart';
+import '../../widgets/midtrans_payment.dart';
+import '../../widgets/qr_view.dart';
+import '../../widgets/history_date_filter.dart';
 
 class GymTransactionScreen extends StatefulWidget {
   const GymTransactionScreen({super.key});
@@ -17,6 +21,12 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
   bool _showTransactionPanel = false;
   bool _showHistoryPanel = false;
   late final GymTransactionController _controller;
+  final _newMemberNameCtrl = TextEditingController();
+
+  // Filter tanggal panel riwayat: 'all' | 'today' | 'date' | 'month'.
+  String _histFilter = 'all';
+  DateTime _histDate = DateTime.now();
+  DateTime _histMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   static const Color _background = Color(0xFFF5F7FB);
   static const Color _surface = Colors.white;
@@ -37,6 +47,12 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
         ? Get.find<GymTransactionController>()
         : Get.put(GymTransactionController());
     if (_controller.packages.isEmpty) _controller.loadGymPackages();
+  }
+
+  @override
+  void dispose() {
+    _newMemberNameCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -358,15 +374,22 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
                   ),
                   const SizedBox(height: 14),
                   if (customerType == 'member') _buildMemberSelector(),
-                  if (customerType == 'new') _buildNewMemberInfo(),
+                  if (customerType == 'new') ...[
+                    _buildNewMemberNameField(),
+                    const SizedBox(height: 12),
+                    _buildNewMemberInfo(),
+                  ],
                   if (customerType == 'guest') _buildGuestInfo(),
                   const SizedBox(height: 18),
                   const Divider(height: 1, color: _border),
                   const SizedBox(height: 16),
                   if (package == null)
                     _buildNoPackageState()
-                  else
+                  else ...[
                     _buildSelectedPackage(package),
+                    const SizedBox(height: 12),
+                    _buildCostBreakdown(),
+                  ],
                 ],
               ),
             ),
@@ -478,6 +501,24 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildNewMemberNameField() {
+    return TextField(
+      controller: _newMemberNameCtrl,
+      textCapitalization: TextCapitalization.words,
+      onChanged: (value) => _controller.newMemberName.value = value,
+      decoration: InputDecoration(
+        labelText: 'Nama calon member',
+        hintText: 'Nama lengkap pelanggan',
+        prefixIcon: const Icon(Icons.person_outline_rounded, color: _accent),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: _accent, width: 1.5),
+        ),
+      ),
     );
   }
 
@@ -637,6 +678,34 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
     );
   }
 
+  Widget _buildCostBreakdown() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Rincian Biaya',
+            style: TextStyle(
+              color: _muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (_controller.adminFee > 0)
+            _buildAmountRow('Biaya pendaftaran', _controller.adminFee),
+          _buildAmountRow('Paket', _controller.selectedPackage.value?.price ?? 0),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTransactionFooter({required bool isSheet}) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -646,13 +715,6 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
       ),
       child: Column(
         children: [
-          if (_controller.adminFee > 0)
-            _buildAmountRow('Biaya pendaftaran', _controller.adminFee),
-          _buildAmountRow(
-            'Paket',
-            _controller.selectedPackage.value?.price ?? 0,
-          ),
-          const Divider(height: 18, color: _border),
           _buildAmountRow(
             'Total pembayaran',
             _controller.transactionTotal,
@@ -682,7 +744,7 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
                   icon: const Icon(Icons.payments_outlined),
                   label: Text(
                     _controller.customerType.value == 'new'
-                        ? 'Bayar & Lanjut Registrasi'
+                        ? 'Bayar'
                         : 'Proses Pembayaran',
                     style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
@@ -858,10 +920,34 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
   }
 
   void _clearTransaction() {
+    _newMemberNameCtrl.clear();
     _controller.clearTransaction();
   }
 
   Future<void> _processTransaction({required bool closeSheet}) async {
+    // Validasi cepat sebelum pembayaran.
+    if (_controller.selectedPackage.value == null) {
+      Get.snackbar('Paket Belum Dipilih', 'Pilih paket terlebih dahulu.');
+      return;
+    }
+    if (_controller.customerType.value == 'member' &&
+        _controller.selectedMember.value == null) {
+      Get.snackbar(
+        'Member Belum Dipilih',
+        'Pilih member yang akan diperpanjang.',
+      );
+      return;
+    }
+
+    // Pembayaran QRIS lewat Midtrans. Debit/EDC diproses langsung di mesin.
+    if (_controller.paymentMethod.value == 'QRIS') {
+      final paid = await showMidtransPayment(
+        amount: _controller.transactionTotal.round(),
+        label: 'GYM',
+      );
+      if (!paid) return; // dibatalkan / belum lunas
+    }
+
     final type = _controller.customerType.value;
     final message = await _controller.processPayment();
     if (message == null) return; // gagal / validasi tidak lolos
@@ -942,10 +1028,7 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
                   mainAxisExtent: 188,
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
-                  return _buildPackageCard(
-                    packages[index],
-                    Get.find<GymTransactionController>(),
-                  );
+                  return _buildPackageCard(packages[index], _controller);
                 }, childCount: packages.length),
               ),
             );
@@ -1255,15 +1338,35 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: HistoryDateFilterBar(
+              mode: _histFilter,
+              date: _histDate,
+              month: _histMonth,
+              accent: _heroStart,
+              onChanged: (m, d, mo) => setState(() {
+                _histFilter = m;
+                _histDate = d;
+                _histMonth = mo;
+              }),
+            ),
+          ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
               child: Obx(() {
-                final transactions = controller.filteredTransactions;
+                final transactions = filterByDate(
+                  controller.transactions.toList(),
+                  (t) => t.transactionDate,
+                  _histFilter,
+                  _histDate,
+                  _histMonth,
+                );
                 if (transactions.isEmpty) {
                   return const EmptyStateWidget(
-                    title: 'Belum Ada Transaksi',
-                    subtitle: 'Riwayat paket gym akan tampil di sini',
+                    title: 'Tidak Ada Transaksi',
+                    subtitle: 'Tidak ada transaksi pada periode ini',
                     icon: Icons.receipt_long_outlined,
                   );
                 }
@@ -1286,54 +1389,78 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
   }
 
   Widget _buildHistoryTile(GymTransaction transaction) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: _softAccent,
-              borderRadius: BorderRadius.circular(8),
+    final isNew = transaction.customerType == 'new';
+    final registered = (transaction.memberCode ?? '').isNotEmpty;
+    final canRegister = isNew && !registered;
+
+    return InkWell(
+      onTap: () => _onHistoryTileTap(transaction),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _softAccent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.fitness_center_rounded,
+                color: _accent,
+                size: 19,
+              ),
             ),
-            child: const Icon(
-              Icons.fitness_center_rounded,
-              color: _accent,
-              size: 19,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  transaction.memberName ?? 'Member Tidak Diketahui',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    transaction.memberName ?? 'Member Tidak Diketahui',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  transaction.packageName ?? 'Paket Gym',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(height: 3),
+                  Text(
+                    transaction.packageName ?? 'Paket Gym',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-              ],
+                  if (canRegister) ...[
+                    const SizedBox(height: 5),
+                    _regChip(
+                      'Klik untuk QR registrasi',
+                      Icons.qr_code_2_rounded,
+                      _accent,
+                      _softAccent,
+                    ),
+                  ] else if (registered) ...[
+                    const SizedBox(height: 5),
+                    _regChip(
+                      'Terdaftar: ${transaction.memberCode}',
+                      Icons.verified_rounded,
+                      const Color(0xFF15803D),
+                      const Color(0xFFEAF7EE),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Column(
+            const SizedBox(width: 8),
+            Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
@@ -1356,6 +1483,155 @@ class _GymTransactionScreenState extends State<GymTransactionScreen> {
                 ),
               ),
             ],
+          ),
+          IconButton(
+            tooltip: 'Cetak struk',
+            onPressed: () => _printGymReceipt(transaction),
+            icon: const Icon(Icons.receipt_long_rounded, size: 24),
+            color: _accent,
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.only(left: 4),
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+      ),
+    );
+  }
+
+  Future<void> _printGymReceipt(GymTransaction tx) async {
+    await printReceipt(
+      txCode: tx.transactionId,
+      date: tx.transactionDate,
+      customer: tx.memberName ?? 'Pelanggan',
+      paymentMethod: tx.paymentMethod,
+      lines: [
+        ReceiptLine(
+          name: tx.packageName ?? 'Paket Gym',
+          qty: 1,
+          price: tx.amount,
+        ),
+      ],
+      total: tx.amount,
+    );
+  }
+
+  void _onHistoryTileTap(GymTransaction transaction) {
+    final isNew = transaction.customerType == 'new';
+    final registered = (transaction.memberCode ?? '').isNotEmpty;
+    if (!isNew) {
+      Get.snackbar(
+        'Bukan Member Baru',
+        'Registrasi data diri hanya untuk transaksi member baru.',
+      );
+      return;
+    }
+    if (registered) {
+      Get.snackbar(
+        'Sudah Terdaftar',
+        'Member ${transaction.memberCode} sudah mengisi data diri.',
+      );
+      return;
+    }
+    _showRegistrationQr(transaction);
+  }
+
+  void _showRegistrationQr(GymTransaction transaction) {
+    final url = _registrationUrl(transaction.transactionId);
+    Get.dialog<void>(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Registrasi Member Baru',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: _heroStart,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  transaction.memberName ?? '-',
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _border),
+                  ),
+                  child: QrView(url, size: 210),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Minta pelanggan scan QR ini dengan HP untuk mengisi data '
+                  'diri. Setelah disimpan, data member langsung masuk sistem.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _muted, fontSize: 11, height: 1.35),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Get.back<void>(),
+                    style: FilledButton.styleFrom(backgroundColor: _heroStart),
+                    child: const Text('Tutup'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _registrationUrl(String trxCode) {
+    const configured = String.fromEnvironment('ATTENDANCE_BASE_URL');
+    final base = configured.isNotEmpty
+        ? configured
+        : Uri.base.replace(query: null, fragment: '').toString();
+    final normalizedBase = base.endsWith('/') ? base : '$base/';
+    return '$normalizedBase#/member-register'
+        '?trx=${Uri.encodeQueryComponent(trxCode)}';
+  }
+
+  Widget _regChip(String label, IconData icon, Color color, Color bg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 8.5,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           ),
         ],
       ),

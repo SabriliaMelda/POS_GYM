@@ -75,6 +75,9 @@ dependencies:
   barcode: ^2.2.9
   flutter_dotenv: ^6.0.1
 
+  # Image processing (mewarnai ulang logo struk jadi hitam)
+  image: ^4.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -96,6 +99,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logogym.png
+    - assets/images/perusahaan.png
     - assets/images/fnb/
     - assets/images/gym/
     - .env

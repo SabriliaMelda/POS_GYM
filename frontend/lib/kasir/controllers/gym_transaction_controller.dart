@@ -25,6 +25,9 @@ class GymTransactionController extends GetxController {
   // POS hanya menerima QRIS dan Debit (via mesin EDC). Tidak menerima tunai.
   final paymentMethod = 'QRIS'.obs;
 
+  /// Nama calon member untuk transaksi tipe "new" (diisi kasir).
+  final newMemberName = ''.obs;
+
   @override
   void onInit() {
     super.onInit();
@@ -124,6 +127,10 @@ class GymTransactionController extends GetxController {
       );
       return null;
     }
+    if (type == 'new' && newMemberName.value.trim().isEmpty) {
+      Get.snackbar('Nama Belum Diisi', 'Masukkan nama calon member baru.');
+      return null;
+    }
     try {
       isLoading.value = true;
       final notes = switch (type) {
@@ -137,6 +144,7 @@ class GymTransactionController extends GetxController {
         packageCode: package.packageId,
         paymentMethod: paymentMethod.value,
         notes: notes,
+        customerName: type == 'new' ? newMemberName.value.trim() : '',
       );
       await loadTransactions();
       if (type == 'member') await loadMemberOptions();
@@ -158,6 +166,7 @@ class GymTransactionController extends GetxController {
     selectedPackage.value = null;
     customerType.value = 'new';
     paymentMethod.value = 'QRIS';
+    newMemberName.value = '';
   }
 
   void filterTransactionsByDateRange(DateTime startDate, DateTime endDate) {

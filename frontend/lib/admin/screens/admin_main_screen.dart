@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../kasir/screens/dashboard/dashboard_screen.dart';
 import 'account/admin_account_screen.dart';
-import 'dashboard/admin_dashboard_screen.dart';
 import 'master/admin_master_data_screen.dart';
 import 'member/admin_member_screen.dart';
 import 'riwayat/admin_riwayat_screen.dart';
@@ -18,7 +18,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _screens = const [
-    AdminDashboardScreen(),
+    DashboardScreen(adminStyle: true),
     AdminMemberScreen(),
     AdminMasterDataScreen(),
     AdminRiwayatScreen(),

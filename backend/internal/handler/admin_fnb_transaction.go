@@ -39,10 +39,11 @@ type fnbTransactionResponse struct {
 }
 
 type createFNBTransactionRequest struct {
-	MemberID      *uint64 `json:"member_id"`
-	PaymentMethod string  `json:"payment_method"`
-	Notes         string  `json:"notes"`
-	Items         []struct {
+	MemberID       *uint64 `json:"member_id"`
+	PaymentMethod  string  `json:"payment_method"`
+	Notes          string  `json:"notes"`
+	DiscountAmount float64 `json:"discount_amount"`
+	Items          []struct {
 		ItemID   uint64  `json:"item_id"`
 		Name     string  `json:"name"`
 		Price    float64 `json:"price"`
@@ -158,11 +159,21 @@ func (h *AuthHandler) CreateFNBTransaction(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// Diskon (mis. voucher F&B) dibatasi 0..total.
+	discount := req.DiscountAmount
+	if discount < 0 {
+		discount = 0
+	}
+	if discount > total {
+		discount = total
+	}
+	final := total - discount
+
 	result, err := tx.Exec(`INSERT INTO food_beverage_transactions
 		(transaction_code, member_code, customer_name, items, total_amount,
 		 discount_amount, tax_amount, final_amount, payment_method, status, notes)
-		VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, 'completed', ?)`,
-		code, memberCode, customerName, string(itemsJSON), total, total, paymentMethod, notes)
+		VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, 'completed', ?)`,
+		code, memberCode, customerName, string(itemsJSON), total, discount, final, paymentMethod, notes)
 	if err != nil {
 		_ = tx.Rollback()
 		httpx.WriteError(w, http.StatusInternalServerError, "gagal menyimpan transaksi")

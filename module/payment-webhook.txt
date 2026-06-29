@@ -1,0 +1,26 @@
+-- Tabel status pembayaran — diisi oleh webhook notifikasi Midtrans.
+-- Jalankan sekali di database pos_gym.
+--
+-- Alur webhook:
+--   Midtrans -> POST /api/payment/notification (publik) saat status berubah.
+--   Backend verifikasi signature (SHA512 order_id+status_code+gross_amount+server_key),
+--   simpan paid di sini. GET /api/payment/status membaca tabel ini lebih dulu,
+--   baru fallback ke /v2/status. Ini membuat SEMUA channel terdeteksi (mis. DANA
+--   yang tidak terbaca lewat /v2/status).
+-- Handler: backend/internal/handler/payment.go (PaymentNotification).
+--
+-- Daftarkan URL notifikasi di dashboard Midtrans:
+--   Settings -> Payment -> "URL notifikasi"
+--   Lokal (uji): https://<subdomain>.ngrok-free.app/api/payment/notification
+--   Produksi   : https://<domain-contabo>/api/payment/notification
+
+CREATE TABLE IF NOT EXISTS payment_status (
+  order_id           VARCHAR(40) NOT NULL,
+  transaction_status VARCHAR(30) NOT NULL,
+  fraud_status       VARCHAR(20) NOT NULL DEFAULT '',
+  paid               TINYINT(1)  NOT NULL DEFAULT 0,
+  gross_amount       VARCHAR(30) NOT NULL DEFAULT '',
+  payment_type       VARCHAR(30) NOT NULL DEFAULT '',
+  updated_at         DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

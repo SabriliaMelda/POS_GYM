@@ -7,7 +7,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../../kasir/models/member_voucher.dart';
-import '../../../kasir/services/mock_data_service.dart';
 import '../master/admin_master_data_service.dart';
 import 'report_download.dart';
 
@@ -32,8 +31,16 @@ class ReportExportService {
     required DateTime? startDate,
     required DateTime? endDate,
     required String periodLabel,
+    String transactionScope = 'all',
+    String memberScope = 'all',
   }) async {
-    final report = await _buildReport(type, startDate, endDate);
+    final report = await _buildReport(
+      type,
+      startDate,
+      endDate,
+      transactionScope,
+      memberScope,
+    );
     final filePeriod = startDate == null || endDate == null
         ? 'semua_data'
         : '${_fileDate.format(startDate)}-${_fileDate.format(endDate)}';
@@ -76,8 +83,9 @@ class ReportExportService {
     ReportType type,
     DateTime? startDate,
     DateTime? endDate,
+    String transactionScope,
+    String memberScope,
   ) async {
-    final data = MockDataService.instance;
     final start = startDate == null
         ? null
         : DateTime(startDate.year, startDate.month, startDate.day);
@@ -99,7 +107,15 @@ class ReportExportService {
         };
         final members =
             databaseMembers
-                .where((item) => inRange(item.registrationDate))
+                .where((item) {
+                  if (!inRange(item.registrationDate)) return false;
+                  final active = item.isActive && !item.isExpired;
+                  return switch (memberScope) {
+                    'active' => active,
+                    'expired' => !active,
+                    _ => true,
+                  };
+                })
                 .toList()
               ..sort(
                 (a, b) => b.registrationDate.compareTo(a.registrationDate),
@@ -115,7 +131,8 @@ class ReportExportService {
             'Alamat',
             'Gender',
             'Tgl Lahir',
-            'Paket',
+            'Paket Awal',
+            'Paket Saat Ini',
             'Tgl Daftar',
             'Masa Berlaku',
             'Total Kunjungan',
@@ -126,7 +143,7 @@ class ReportExportService {
           ],
           rows: members.map((item) {
             final earnedVoucher = item.totalVisits ~/ kVisitsPerVoucher;
-            final usedVoucher = item.voucherRedemptions.length;
+            final usedVoucher = item.vouchers.where((v) => v.used).length;
             return [
               item.memberId,
               item.name,
@@ -135,6 +152,7 @@ class ReportExportService {
               item.address.isEmpty ? '-' : item.address,
               _genderLabel(item.gender),
               _date.format(item.dateOfBirth),
+              packageNames[item.initialPackageId] ?? item.initialPackageId,
               packageNames[item.gymPackageId] ?? item.gymPackageId,
               _date.format(item.registrationDate),
               _date.format(item.membershipExpiryDate),
@@ -148,35 +166,52 @@ class ReportExportService {
         );
 
       case ReportType.transaction:
+        final repository = AdminMasterDataRepository();
+        final gymTx = await repository.listGymTransactions();
+        final fnbTx = await repository.listFnbTransactions();
         final rows = <_DatedRow>[
-          ...data.gymTransactions
+          if (transactionScope != 'fnb')
+            ...gymTx
               .where((item) => inRange(item.transactionDate))
-              .map(
-                (item) => _DatedRow(item.transactionDate, [
+              .map((item) {
+                final jenis = switch (item.customerType) {
+                  'new' => 'Gym - Pendaftaran',
+                  'member' => 'Gym - Perpanjangan',
+                  'guest' => 'Gym - Daily Pass',
+                  _ => 'Gym',
+                };
+                return _DatedRow(item.transactionDate, [
                   item.transactionId,
                   _date.format(item.transactionDate),
-                  'Gym',
+                  jenis,
                   item.memberName ?? 'Pelanggan Gym',
                   item.packageName ?? '-',
                   item.paymentMethod,
                   _currency.format(item.amount),
                   item.status,
-                ]),
-              ),
-          ...data.foodBeverageTransactions
+                ]);
+              }),
+          if (transactionScope != 'gym')
+            ...fnbTx
               .where((item) => inRange(item.transactionDate))
-              .map(
-                (item) => _DatedRow(item.transactionDate, [
+              .map((item) {
+                final pakaiVoucher = (item.discountAmount ?? 0) > 0;
+                final detail = item.items
+                    .map((entry) => '${entry.itemName} x${entry.quantity}')
+                    .join(', ');
+                return _DatedRow(item.transactionDate, [
                   item.transactionId,
                   _date.format(item.transactionDate),
-                  'Food & Beverage',
+                  pakaiVoucher ? 'F&B - Voucher' : 'F&B',
                   item.memberName ?? 'Non-member',
-                  item.items.map((entry) => entry.itemName).join(', '),
+                  pakaiVoucher
+                      ? '$detail (diskon ${_currency.format(item.discountAmount ?? 0)})'
+                      : detail,
                   item.paymentMethod,
                   _currency.format(item.finalAmount),
                   item.status,
-                ]),
-              ),
+                ]);
+              }),
         ]..sort((a, b) => b.date.compareTo(a.date));
         return _ReportData(
           title: 'Laporan Transaksi',
@@ -195,8 +230,10 @@ class ReportExportService {
         );
 
       case ReportType.visit:
+        final repository = AdminMasterDataRepository();
+        final attendance = await repository.listAttendance();
         final visits =
-            data.attendanceRecords
+            attendance
                 .where((item) => inRange(item.attendanceDate))
                 .toList()
               ..sort((a, b) => b.attendanceDate.compareTo(a.attendanceDate));

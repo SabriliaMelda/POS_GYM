@@ -1,0 +1,26 @@
+-- =====================================================================
+-- Seed demo: 15 member berstatus "PERLU PERPANJANGAN".
+-- Masa berlaku diset 1-3 hari lagi (dalam H-3), jadi tombol Perpanjang aktif
+-- dan filter "Perlu Perpanjangan" terisi untuk pengujian.
+-- Relatif ke CURDATE() -> tetap valid kapan pun dijalankan.
+-- Mengecualikan Sabrilia (demo voucher) & 5 member demo perpanjangan.
+-- =====================================================================
+
+USE `pos_gym`;
+
+UPDATE members m
+JOIN (
+  SELECT id FROM members
+  WHERE member_code NOT IN (
+    'MBR-58310427',  -- Sabrilia (demo voucher)
+    'MBR-96018192','MBR-21161094','MBR-50921893','MBR-15500595','MBR-29429897'
+  )
+  ORDER BY id
+  LIMIT 15
+) pick ON pick.id = m.id
+SET m.membership_expiry_date = DATE_ADD(CURDATE(), INTERVAL (1 + (m.id % 3)) DAY);
+
+-- Verifikasi jumlah yang "perlu perpanjangan" (kedaluwarsa 1-3 hari lagi):
+-- SELECT COUNT(*) FROM members
+-- WHERE membership_expiry_date > CURDATE()
+--   AND membership_expiry_date <= DATE_ADD(CURDATE(), INTERVAL 3 DAY);

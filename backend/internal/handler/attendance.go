@@ -73,6 +73,21 @@ func (h *AuthHandler) CheckInAttendance(w http.ResponseWriter, r *http.Request) 
 	affected, _ := res.RowsAffected()
 	already := affected == 0
 
+	// Kunjungan baru hari ini -> tambah total kunjungan member. Bila menjadi
+	// kelipatan 50, terbitkan voucher F&B baru (memicu follow-up email otomatis).
+	if !already {
+		if _, err := h.db.Exec(
+			`UPDATE members SET total_visits = total_visits + 1 WHERE member_code = ?`,
+			code); err == nil {
+			var total int
+			if err := h.db.QueryRow(
+				`SELECT total_visits FROM members WHERE member_code = ? LIMIT 1`,
+				code).Scan(&total); err == nil {
+				h.createVoucherOnMilestone(code, total)
+			}
+		}
+	}
+
 	var checkInAt time.Time
 	_ = h.db.QueryRow(
 		`SELECT check_in_at FROM attendance WHERE member_code = ? AND attendance_date = CURDATE() LIMIT 1`,

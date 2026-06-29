@@ -3,19 +3,9 @@ import 'member.dart';
 /// Jumlah kunjungan untuk membuka satu voucher F&B.
 const int kVisitsPerVoucher = 50;
 
-/// Urutan besaran diskon voucher yang BERULANG setiap [kVisitsPerVoucher]
-/// kunjungan: 30% -> 50% -> 70% -> 100% -> 30% -> ... dan seterusnya.
-///
-/// Jadi tiap 50 kunjungan member dapat 1 voucher, dan persennya memutar
-/// siklus ini tanpa berhenti:
-///   50  -> 30%    250 -> 30%
-///   100 -> 50%    300 -> 50%
-///   150 -> 70%    350 -> 70%
-///   200 -> 100%   400 -> 100%
-///
-/// Logika ini dipakai bersama oleh layar admin (tampilan) dan kasir
-/// (penukaran voucher) agar konsisten.
-const List<int> kVoucherCycle = [30, 50, 70, 100];
+/// Urutan besaran diskon voucher yang BERULANG tiap 6 milestone (300 kunjungan):
+/// 50x->10%, 100x->25%, 150x->35%, 200x->45%, 250x->55%, 300x->70%, lalu ulang.
+const List<int> kVoucherCycle = [10, 25, 35, 45, 55, 70];
 
 /// Besaran diskon (persen) untuk milestone ke-[index].
 /// index 1 = kunjungan ke-50, index 2 = ke-100, dst.
@@ -24,7 +14,7 @@ int voucherPercentForMilestone(int index) {
   return kVoucherCycle[(index - 1) % kVoucherCycle.length];
 }
 
-/// Satu voucher pada milestone kunjungan tertentu.
+/// Voucher berikutnya yang akan terbuka. Selalu ada karena siklus berulang.
 class VoucherTier {
   const VoucherTier({required this.visits, required this.percent});
 
@@ -35,46 +25,59 @@ class VoucherTier {
   final int percent;
 }
 
-/// Status sebuah voucher yang sudah didapat member.
+/// Status sebuah voucher yang sudah didapat member. Lifecycle dihitung backend
+/// (aktif / dipakai / hangus) berdasarkan tanggal aktif + kadaluwarsa 30 hari.
 class MemberVoucherStatus {
-  const MemberVoucherStatus({required this.tier, required this.usedAt});
+  const MemberVoucherStatus({
+    required this.visits,
+    required this.percent,
+    required this.activatedAt,
+    required this.expiresAt,
+    required this.usedAt,
+    required this.status,
+  });
 
-  final VoucherTier tier;
+  final int visits;
+  final int percent;
+  final DateTime activatedAt;
+  final DateTime expiresAt;
 
   /// Tanggal voucher dipakai, atau null jika belum dipakai.
   final DateTime? usedAt;
 
-  int get percent => tier.percent;
-  int get visits => tier.visits;
+  /// 'active' | 'used' | 'expired' (dari backend).
+  final String status;
 
-  /// Voucher yang sudah didapat selalu terbuka.
-  bool get unlocked => true;
+  bool get used => status == 'used';
 
-  bool get used => usedAt != null;
+  /// Sudah lewat 30 hari tanpa dipakai -> hangus.
+  bool get expired => status == 'expired';
 
-  /// Sudah didapat tapi belum ditukar -> bisa dipakai di kasir.
-  bool get available => !used;
+  /// Masih bisa ditukar di kasir.
+  bool get available => status == 'active';
+
+  /// Sisa hari sebelum hangus (untuk voucher aktif).
+  int get daysUntilExpiry =>
+      expiresAt.difference(DateTime.now()).inDays;
 }
 
-/// Daftar voucher yang sudah DIDAPAT member, berurutan dari milestone
-/// pertama (50 kunjungan) sampai milestone terakhir yang sudah dicapai.
+/// Daftar voucher yang sudah DIDAPAT member (dari backend), urut milestone.
 List<MemberVoucherStatus> memberVoucherStatuses(Member member) {
-  final earned = member.totalVisits ~/ kVisitsPerVoucher;
-  final usedByMilestone = <int, DateTime>{};
-  for (final redemption in member.voucherRedemptions) {
-    usedByMilestone[redemption.visitMilestone] = redemption.usedAt;
-  }
-  return List.generate(earned, (i) {
-    final index = i + 1;
-    final visits = index * kVisitsPerVoucher;
-    return MemberVoucherStatus(
-      tier: VoucherTier(
-        visits: visits,
-        percent: voucherPercentForMilestone(index),
-      ),
-      usedAt: usedByMilestone[visits],
-    );
-  });
+  final list =
+      member.vouchers
+          .map(
+            (v) => MemberVoucherStatus(
+              visits: v.visitMilestone,
+              percent: v.percent,
+              activatedAt: v.activatedAt,
+              expiresAt: v.expiresAt,
+              usedAt: v.usedAt,
+              status: v.status,
+            ),
+          )
+          .toList()
+        ..sort((a, b) => a.visits.compareTo(b.visits));
+  return list;
 }
 
 /// Voucher berikutnya yang akan terbuka. Selalu ada karena siklus berulang.
@@ -91,7 +94,7 @@ int visitsToNextTier(int totalVisits) {
   return kVisitsPerVoucher - (totalVisits % kVisitsPerVoucher);
 }
 
-/// Voucher yang sudah didapat dan belum dipakai (siap ditukar di kasir).
+/// Voucher yang sudah didapat dan masih AKTIF (siap ditukar di kasir).
 List<MemberVoucherStatus> availableVouchers(Member member) {
   return memberVoucherStatuses(member).where((s) => s.available).toList();
 }

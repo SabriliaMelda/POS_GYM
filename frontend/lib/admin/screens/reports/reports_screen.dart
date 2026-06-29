@@ -58,6 +58,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
   _ReportMenu? _selected;
   ReportFileFormat _format = ReportFileFormat.pdf;
   _ReportPeriod _period = _ReportPeriod.all;
+  // Kategori transaksi: 'all' | 'gym' | 'fnb'. Kategori member: 'all' |
+  // 'active' | 'expired'.
+  String _txScope = 'all';
+  String _memberScope = 'all';
   late DateTimeRange _range;
   bool _isExporting = false;
 
@@ -73,6 +77,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       _selected = report;
       _format = ReportFileFormat.pdf;
       _period = _ReportPeriod.all;
+      _txScope = 'all';
+      _memberScope = 'all';
       final now = DateTime.now();
       _range = DateTimeRange(start: DateTime(now.year, now.month), end: now);
     });
@@ -119,6 +125,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
         startDate: _period == _ReportPeriod.all ? null : _range.start,
         endDate: _period == _ReportPeriod.all ? null : _range.end,
         periodLabel: _periodLabel,
+        transactionScope: _txScope,
+        memberScope: _memberScope,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -339,6 +347,72 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   // ---------------------------------------------------------------------------
+  // Selektor kategori (di atas periode): transaksi -> Gym/F&B, member ->
+  // Aktif/Kadaluwarsa. Laporan kunjungan tidak punya kategori.
+  Widget _buildScopeSelector(ReportType type) {
+    if (type == ReportType.transaction) {
+      return _scopeChips(
+        label: 'KATEGORI TRANSAKSI',
+        options: const [('all', 'Semua'), ('gym', 'Gym'), ('fnb', 'F&B')],
+        selected: _txScope,
+        onSelected: (v) => setState(() => _txScope = v),
+      );
+    }
+    if (type == ReportType.member) {
+      return _scopeChips(
+        label: 'KATEGORI MEMBER',
+        options: const [
+          ('all', 'Semua'),
+          ('active', 'Aktif'),
+          ('expired', 'Kadaluwarsa'),
+        ],
+        selected: _memberScope,
+        onSelected: (v) => setState(() => _memberScope = v),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _scopeChips({
+    required String label,
+    required List<(String, String)> options,
+    required String selected,
+    required ValueChanged<String> onSelected,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(label),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((opt) {
+            final isSel = selected == opt.$1;
+            return ChoiceChip(
+              label: Text(opt.$2),
+              selected: isSel,
+              onSelected: (_) => onSelected(opt.$1),
+              showCheckmark: false,
+              selectedColor: ReportsScreen._blue.withValues(alpha: 0.12),
+              backgroundColor: const Color(0xFFF8FAFC),
+              side: BorderSide(
+                color: isSel ? ReportsScreen._blue : ReportsScreen._border,
+              ),
+              labelStyle: TextStyle(
+                color: isSel ? ReportsScreen._blue : ReportsScreen._muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+              visualDensity: VisualDensity.compact,
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
   // Panel opsi (format + periode + kalender + tombol unduh)
   // ---------------------------------------------------------------------------
   Widget _buildOptionsPanel() {
@@ -428,6 +502,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ],
           ),
           const SizedBox(height: 20),
+          _buildScopeSelector(report.type),
           _label('PERIODE LAPORAN'),
           const SizedBox(height: 9),
           Wrap(
@@ -492,79 +567,28 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _buildPeriodDetail() {
-    if (_period == _ReportPeriod.all) {
-      return _infoBox(
-        icon: Icons.storage_rounded,
-        text: 'Seluruh data dalam database akan disertakan.',
-      );
-    }
+    // Tanpa kotak info untuk periode biasa; kalender hanya saat Rentang Khusus.
     if (_period != _ReportPeriod.custom) {
-      return _infoBox(
-        icon: Icons.date_range_rounded,
-        text:
-            'Periode: ${_dateFormat.format(_range.start)} — '
-            '${_dateFormat.format(_range.end)}',
-      );
+      return const SizedBox.shrink();
     }
-    // Rentang khusus: kalender inline muncul di bawah.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _infoBox(
-          icon: Icons.event_available_rounded,
-          text:
-              'Rentang dipilih: ${_dateFormat.format(_range.start)} — '
-              '${_dateFormat.format(_range.end)}',
-        ),
-        const SizedBox(height: 10),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 320),
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: ReportsScreen._border),
-              ),
-              child: _InlineRangeCalendar(
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now(),
-                range: _range,
-                onChanged: (value) => setState(() => _range = value),
-              ),
-            ),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: ReportsScreen._border),
+          ),
+          child: _InlineRangeCalendar(
+            firstDate: DateTime(2020),
+            lastDate: DateTime.now(),
+            range: _range,
+            onChanged: (value) => setState(() => _range = value),
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _infoBox({required IconData icon, required String text}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ReportsScreen._border),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: ReportsScreen._blue, size: 21),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: ReportsScreen._text,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

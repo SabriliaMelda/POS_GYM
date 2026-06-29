@@ -1,0 +1,28 @@
+# Service systemd untuk backend Go POS_GYM.
+# Simpan di: /etc/systemd/system/posgym-backend.service
+# Lalu: sudo systemctl daemon-reload && sudo systemctl enable --now posgym-backend
+#
+# Asumsi: repo di /opt/posgym, binari hasil `go build -o posgym-api ./cmd/api`
+# ada di /opt/posgym/backend/posgym-api, dan /opt/posgym/backend/.env sudah diisi.
+
+[Unit]
+Description=POS_GYM Go backend (REST API)
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=posgym
+Group=posgym
+WorkingDirectory=/opt/posgym/backend
+# config.go membaca file .env relatif terhadap WorkingDirectory ini.
+ExecStart=/opt/posgym/backend/posgym-api
+Restart=on-failure
+RestartSec=3
+# Keamanan dasar:
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

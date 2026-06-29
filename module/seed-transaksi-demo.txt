@@ -1,0 +1,105 @@
+-- =====================================================================
+-- Seed demo transaksi (agar riwayat/laporan terlihat nyata).
+-- Membuat transaksi GYM (pendaftaran + perpanjangan) dari data members &
+-- member_renewals, dan transaksi F&B (sebagian pakai voucher) untuk member.
+-- Aman dijalankan ulang (pakai NOT EXISTS berdasar transaction_code).
+-- Jalankan SETELAH module member/kunjungan-voucher/voucher-lifecycle.
+-- =====================================================================
+
+USE `pos_gym`;
+
+-- A1) Transaksi PENDAFTARAN (paket awal) untuk tiap member.
+INSERT INTO gym_transactions
+  (transaction_code, member_code, package_code, customer_type, customer_name,
+   amount, admin_fee, payment_method, status, notes, transaction_date)
+SELECT
+  CONCAT('GYM-R', LPAD(m.id, 7, '0')),
+  m.member_code,
+  COALESCE(m.initial_package_code, m.package_code),
+  'new', m.full_name, g.price, 0,
+  ELT(1 + MOD(m.id, 3), 'QRIS', 'Cash', 'Transfer'),
+  'completed',
+  CONCAT('Pendaftaran member baru - ', g.package_name),
+  DATE_ADD(TIMESTAMP(m.registration_date), INTERVAL (8 + MOD(m.id, 11)) HOUR)
+FROM members m
+JOIN gym_packages g ON g.package_code = COALESCE(m.initial_package_code, m.package_code)
+WHERE NOT EXISTS (
+  SELECT 1 FROM gym_transactions t
+  WHERE t.member_code = m.member_code AND t.customer_type = 'new'
+);
+
+-- A2) Transaksi PERPANJANGAN dari riwayat member_renewals.
+INSERT INTO gym_transactions
+  (transaction_code, member_code, package_code, customer_type, customer_name,
+   amount, admin_fee, payment_method, status, notes, transaction_date)
+SELECT
+  CONCAT('GYM-P', LPAD(r.id, 7, '0')),
+  r.member_code, r.package_code, 'member', m.full_name, r.amount, 0,
+  ELT(1 + MOD(r.id, 3), 'QRIS', 'Cash', 'Transfer'),
+  'completed',
+  CONCAT('Perpanjangan - ', COALESCE(g.package_name, r.package_code)),
+  DATE_ADD(TIMESTAMP(r.renewed_at), INTERVAL (10 + MOD(r.id, 9)) HOUR)
+FROM member_renewals r
+JOIN members m ON m.member_code = r.member_code
+LEFT JOIN gym_packages g ON g.package_code = r.package_code
+WHERE NOT EXISTS (
+  SELECT 1 FROM gym_transactions t
+  WHERE t.transaction_code = CONCAT('GYM-P', LPAD(r.id, 7, '0'))
+);
+
+-- B1) F&B: 1 transaksi per member (item dipilih deterministik).
+INSERT INTO food_beverage_transactions
+  (transaction_code, member_code, customer_name, items, total_amount,
+   discount_amount, tax_amount, final_amount, payment_method, status, notes, transaction_date)
+WITH ranked AS (
+  SELECT id, name, price, (ROW_NUMBER() OVER (ORDER BY id)) - 1 AS rn
+  FROM food_beverage_items WHERE is_active = 1
+),
+cnt AS (SELECT COUNT(*) c FROM food_beverage_items WHERE is_active = 1)
+SELECT
+  CONCAT('FNB-S', LPAD(m.id, 6, '0')), m.member_code, m.full_name,
+  JSON_ARRAY(JSON_OBJECT('item_id', r.id, 'name', r.name, 'price', r.price,
+    'quantity', (1 + MOD(m.id, 2)), 'subtotal', r.price * (1 + MOD(m.id, 2)))),
+  r.price * (1 + MOD(m.id, 2)), 0, 0, r.price * (1 + MOD(m.id, 2)),
+  ELT(1 + MOD(m.id, 2), 'QRIS', 'Cash'), 'completed', 'Pembelian F&B',
+  DATE_ADD(TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL MOD(m.id * 7, 90) DAY)),
+           INTERVAL (9 + MOD(m.id, 10)) HOUR)
+FROM members m
+CROSS JOIN cnt
+JOIN ranked r ON r.rn = MOD(m.id, cnt.c)
+WHERE NOT EXISTS (
+  SELECT 1 FROM food_beverage_transactions t
+  WHERE t.transaction_code = CONCAT('FNB-S', LPAD(m.id, 6, '0'))
+);
+
+-- B2) F&B pakai VOUCHER: ~40 member ber-voucher aktif, diskon = persen voucher.
+INSERT INTO food_beverage_transactions
+  (transaction_code, member_code, customer_name, items, total_amount,
+   discount_amount, tax_amount, final_amount, payment_method, status, notes, transaction_date)
+WITH ranked AS (
+  SELECT id, name, price, (ROW_NUMBER() OVER (ORDER BY id)) - 1 AS rn
+  FROM food_beverage_items WHERE is_active = 1
+),
+cnt AS (SELECT COUNT(*) c FROM food_beverage_items WHERE is_active = 1),
+vm AS (
+  SELECT member_code, MAX(voucher_percent) pct FROM member_vouchers
+  WHERE used_at IS NULL AND expires_at >= CURDATE()
+  GROUP BY member_code LIMIT 40
+)
+SELECT
+  CONCAT('FNB-V', LPAD(m.id, 6, '0')), m.member_code, m.full_name,
+  JSON_ARRAY(JSON_OBJECT('item_id', r.id, 'name', r.name, 'price', r.price,
+    'quantity', 2, 'subtotal', r.price * 2)),
+  r.price * 2, ROUND(r.price * 2 * vm.pct / 100), 0,
+  r.price * 2 - ROUND(r.price * 2 * vm.pct / 100),
+  'QRIS', 'completed', CONCAT('Voucher F&B ', vm.pct, '% - ', m.full_name),
+  DATE_ADD(TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL MOD(m.id * 3, 30) DAY)),
+           INTERVAL (12 + MOD(m.id, 6)) HOUR)
+FROM vm
+JOIN members m ON m.member_code = vm.member_code
+CROSS JOIN cnt
+JOIN ranked r ON r.rn = MOD(m.id + 5, cnt.c)
+WHERE NOT EXISTS (
+  SELECT 1 FROM food_beverage_transactions t
+  WHERE t.transaction_code = CONCAT('FNB-V', LPAD(m.id, 6, '0'))
+);

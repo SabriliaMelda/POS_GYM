@@ -1,21 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../controllers/food_beverage_transaction_controller.dart';
 import '../../controllers/gym_transaction_controller.dart';
+import '../../controllers/kasir_shell_controller.dart';
 import '../../controllers/member_management_controller.dart';
 import '../../models/index.dart';
 import '../../models/member_voucher.dart';
 import '../../utils/utils.dart';
-import '../gym_transaction/gym_transaction_screen.dart';
 
 /// Membuka layar transaksi gym dalam mode perpanjangan untuk [member].
 /// Pembayaran di sana otomatis tercatat sebagai transaksi gym + perpanjangan.
 void openRenewalFlow(Member member) {
+  // Tutup layar yang menumpuk (mis. detail member) DULU, supaya controller
+  // terdaftar pada shell yang persisten — bukan pada route yang langsung ditutup
+  // (kalau tidak, GetX membuang controllernya -> "GymTransactionController not
+  // found"). Lalu siapkan perpanjangan dan pindah ke TAB Gym (navbar tetap).
+  Get.until((route) => route.isFirst);
   final gym = Get.isRegistered<GymTransactionController>()
       ? Get.find<GymTransactionController>()
       : Get.put(GymTransactionController());
   gym.startRenewal(member);
-  Get.to(() => const GymTransactionScreen());
+  if (Get.isRegistered<KasirShellController>()) {
+    Get.find<KasirShellController>().goTo(KasirTab.gym);
+  }
 }
 
 const Color _background = Color(0xFFF5F7FB);
@@ -265,14 +273,22 @@ class MemberDetailScreen extends StatelessWidget {
   }
 
   Widget _buildRenewButton(Member member) {
+    // Hanya bisa diperpanjang mulai H-7 sebelum masa paket berakhir.
+    final canRenewNow = MemberManagementController.isRenewalDue(member);
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        onPressed: () => openRenewalFlow(member),
+        onPressed: canRenewNow ? () => openRenewalFlow(member) : null,
         icon: const Icon(Icons.autorenew_rounded, size: 19),
-        label: const Text('Perpanjang Membership'),
+        label: Text(
+          canRenewNow
+              ? 'Perpanjang Membership'
+              : 'Perpanjang tersedia mulai H-7',
+        ),
         style: FilledButton.styleFrom(
           backgroundColor: _accent,
+          disabledBackgroundColor: const Color(0xFFE2E8F0),
+          disabledForegroundColor: const Color(0xFF94A3B8),
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -378,29 +394,166 @@ class MemberDetailScreen extends StatelessWidget {
 
   Widget _buildVoucherSection(Member member) {
     final vouchers = memberVoucherStatuses(member);
+    final activeCount = vouchers.where((v) => v.available).length;
     return _panel(
       title: 'Voucher F&B',
       icon: Icons.confirmation_number_rounded,
-      trailing: '${vouchers.length}',
+      trailing: activeCount > 0 ? '$activeCount aktif' : '${vouchers.length}',
       child: vouchers.isEmpty
           ? _emptyHint('Belum ada voucher (butuh $kVisitsPerVoucher kunjungan).')
           : Column(
               children: [
-                for (final v in vouchers)
-                  _timelineTile(
-                    title: 'Diskon ${v.percent}% • ${v.visits} kunjungan',
-                    subtitle: v.used
-                        ? 'Sudah dipakai'
-                        : 'Tersedia untuk ditukar',
-                    trailing: v.used ? 'Dipakai' : 'Aktif',
-                    trailingColor: v.used ? _muted : _success,
-                    date: v.usedAt == null
-                        ? '-'
-                        : DateTimeUtils.formatDate(v.usedAt!),
-                  ),
+                for (final v in vouchers) _buildVoucherTile(member, v),
               ],
             ),
     );
+  }
+
+  Widget _buildVoucherTile(Member member, MemberVoucherStatus v) {
+    final label = switch (v.status) {
+      'used' => 'Dipakai',
+      'expired' => 'Hangus',
+      _ => 'Aktif',
+    };
+    final color = switch (v.status) {
+      'used' => _muted,
+      'expired' => _danger,
+      _ => _success,
+    };
+    final bg = switch (v.status) {
+      'used' => const Color(0xFFF1F5F9),
+      'expired' => const Color(0xFFFBEAEA),
+      _ => const Color(0xFFE7F6EC),
+    };
+    final subtitle = switch (v.status) {
+      'used' =>
+        'Ditukar ${v.usedAt == null ? '-' : DateTimeUtils.formatDate(v.usedAt!)}',
+      'expired' => 'Hangus sejak ${DateTimeUtils.formatDate(v.expiresAt)}',
+      _ =>
+        'Berlaku s/d ${DateTimeUtils.formatDate(v.expiresAt)} • '
+            '${v.daysUntilExpiry < 0 ? 0 : v.daysUntilExpiry} hari lagi',
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '${v.percent}%',
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Diskon ${v.percent}% • ${v.visits} kunjungan',
+                  style: const TextStyle(
+                    color: _text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: _muted, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (v.available)
+            FilledButton(
+              onPressed: () => _confirmRedeem(member, v),
+              style: FilledButton.styleFrom(
+                backgroundColor: _success,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              child: const Text('Pakai'),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmRedeem(Member member, MemberVoucherStatus v) async {
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Pakai Voucher'),
+        content: Text(
+          'Pakai voucher diskon ${v.percent}% F&B untuk ${member.name}? '
+          'Anda akan diarahkan ke transaksi F&B; voucher tercatat DIPAKAI '
+          'setelah pembayaran selesai.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _success),
+            onPressed: () => Get.back(result: true),
+            child: const Text('Lanjut ke F&B'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    // Tutup detail DULU agar controller terdaftar pada shell yang persisten,
+    // lalu pasang diskon voucher dan pindah ke TAB F&B (navbar tetap ada).
+    Get.until((route) => route.isFirst);
+    final fnb = Get.isRegistered<FoodBeverageTransactionController>()
+        ? Get.find<FoodBeverageTransactionController>()
+        : Get.put(FoodBeverageTransactionController());
+    fnb.applyVoucher(member, v.visits, v.percent);
+    if (Get.isRegistered<KasirShellController>()) {
+      Get.find<KasirShellController>().goTo(KasirTab.fnb);
+    }
   }
 
   Widget _buildFollowUpSection(Member member) {

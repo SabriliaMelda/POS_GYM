@@ -33,6 +33,11 @@ class _AttendanceViewState extends State<_AttendanceView> {
   late final AttendanceController _controller;
   Member? _selectedMember;
 
+  // Filter kehadiran: 'today' | 'date' | 'month'.
+  String _attFilter = 'today';
+  DateTime _filterDate = DateTime.now();
+  DateTime _filterMonth = DateTime(DateTime.now().year, DateTime.now().month);
+
   @override
   void initState() {
     super.initState();
@@ -92,7 +97,7 @@ class _AttendanceViewState extends State<_AttendanceView> {
         ],
       ),
       body: Obx(() {
-        final records = _controller.todayAttendance.toList();
+        final records = _filteredRecords();
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -101,13 +106,13 @@ class _AttendanceViewState extends State<_AttendanceView> {
             final attendance = _buildAttendancePanel(records);
 
             return RefreshIndicator(
-              onRefresh: _controller.loadTodayAttendance,
+              onRefresh: _controller.loadAttendance,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
                 child: Column(
                   children: [
-                    _buildStatusHero(records.length),
+                    _buildStatusHero(),
                     const SizedBox(height: 14),
                     if (wide)
                       Row(
@@ -133,7 +138,7 @@ class _AttendanceViewState extends State<_AttendanceView> {
     );
   }
 
-  Widget _buildStatusHero(int total) {
+  Widget _buildStatusHero() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -145,93 +150,181 @@ class _AttendanceViewState extends State<_AttendanceView> {
           colors: [Color(0xFF071A3D), Color(0xFF0B3A7A), Color(0xFF155E9F)],
         ),
       ),
-      child: Wrap(
-        spacing: 22,
-        runSpacing: 14,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(
-            width: 300,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Barcode absensi siap digunakan',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Cari member, tampilkan barcode, lalu scan menggunakan ponsel untuk membuka halaman konfirmasi absensi.',
-                  style: TextStyle(
-                    color: Color(0xFFC8DDF2),
-                    fontSize: 11,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+          Text(
+            'Barcode absensi siap digunakan',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          _buildHeroMetric(
-            'Absensi hari ini',
-            '$total',
-            Icons.how_to_reg_rounded,
-          ),
-          _buildHeroMetric(
-            'Status absensi',
-            'Aktif',
-            Icons.check_circle_outline_rounded,
+          SizedBox(height: 5),
+          Text(
+            'Cari member, tampilkan barcode, lalu scan menggunakan ponsel untuk membuka halaman konfirmasi absensi.',
+            style: TextStyle(
+              color: Color(0xFFC8DDF2),
+              fontSize: 11,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHeroMetric(String label, String value, IconData icon) {
-    return Container(
-      width: 142,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFFFFC857), size: 22),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
+  List<Attendance> _filteredRecords() {
+    final all = _controller.attendanceRecords;
+    bool sameDay(DateTime a, DateTime b) =>
+        a.year == b.year && a.month == b.month && a.day == b.day;
+    switch (_attFilter) {
+      case 'date':
+        return all
+            .where((a) => sameDay(a.attendanceDate, _filterDate))
+            .toList();
+      case 'month':
+        return all
+            .where(
+              (a) =>
+                  a.attendanceDate.year == _filterMonth.year &&
+                  a.attendanceDate.month == _filterMonth.month,
+            )
+            .toList();
+      default: // today
+        final now = DateTime.now();
+        return all.where((a) => sameDay(a.attendanceDate, now)).toList();
+    }
+  }
+
+  String _filterLabel() {
+    switch (_attFilter) {
+      case 'date':
+        return _formatDate(_filterDate);
+      case 'month':
+        return _monthYearLabel(_filterMonth);
+      default:
+        return 'Hari Ini';
+    }
+  }
+
+  String _monthYearLabel(DateTime d) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${months[d.month - 1]} ${d.year}';
+  }
+
+  Future<void> _pickFilterDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _filterDate.isAfter(now) ? now : _filterDate,
+      firstDate: DateTime(now.year - 5),
+      lastDate: now,
+      helpText: 'Pilih tanggal kehadiran',
+    );
+    if (picked == null) return;
+    setState(() {
+      _attFilter = 'date';
+      _filterDate = picked;
+    });
+  }
+
+  Future<void> _pickFilterMonth() async {
+    final now = DateTime.now();
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    var year = _filterMonth.year;
+    final picked = await showDialog<DateTime>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                onPressed: () => setLocal(() => year--),
+                icon: const Icon(Icons.chevron_left_rounded),
+              ),
+              Text(
+                '$year',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
                 ),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFFC8DDF2),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
+              ),
+              IconButton(
+                onPressed: year < now.year ? () => setLocal(() => year++) : null,
+                icon: const Icon(Icons.chevron_right_rounded),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 280,
+            child: GridView.count(
+              shrinkWrap: true,
+              crossAxisCount: 3,
+              childAspectRatio: 2.2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              children: List.generate(12, (i) {
+                final m = i + 1;
+                final disabled = year == now.year && m > now.month;
+                final selected =
+                    _filterMonth.year == year && _filterMonth.month == m;
+                return FilledButton(
+                  onPressed: disabled
+                      ? null
+                      : () => Navigator.pop(context, DateTime(year, m)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: selected ? _primary : _background,
+                    foregroundColor: selected ? Colors.white : _text,
+                    padding: EdgeInsets.zero,
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-              ],
+                  child: Text(months[i]),
+                );
+              }),
             ),
           ),
-        ],
+        ),
       ),
     );
+    if (picked == null) return;
+    setState(() {
+      _attFilter = 'month';
+      _filterMonth = picked;
+    });
   }
 
   Widget _buildAccessTerminal() {
@@ -408,6 +501,41 @@ class _AttendanceViewState extends State<_AttendanceView> {
     return '$normalizedBase#/member-check-in?member=${Uri.encodeQueryComponent(memberId)}';
   }
 
+  Widget _attFilterChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? _primary : _background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? _primary : _border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: selected ? Colors.white : _primary),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : _muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAttendancePanel(List<Attendance> records) {
     return Container(
       height: 620,
@@ -417,22 +545,24 @@ class _AttendanceViewState extends State<_AttendanceView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Kehadiran Hari Ini',
-                        style: TextStyle(
+                        'Kehadiran ${_filterLabel()}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
                           color: _text,
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      Text(
+                      const Text(
                         'Nama, tanggal, dan jam kehadiran member',
                         style: TextStyle(color: _muted, fontSize: 10),
                       ),
@@ -460,12 +590,47 @@ class _AttendanceViewState extends State<_AttendanceView> {
               ],
             ),
           ),
+          // Filter periode kehadiran.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _attFilterChip(
+                    label: 'Hari Ini',
+                    icon: Icons.today_rounded,
+                    selected: _attFilter == 'today',
+                    onTap: () => setState(() => _attFilter = 'today'),
+                  ),
+                  const SizedBox(width: 8),
+                  _attFilterChip(
+                    label: _attFilter == 'date'
+                        ? _formatDate(_filterDate)
+                        : 'Pilih Tanggal',
+                    icon: Icons.event_rounded,
+                    selected: _attFilter == 'date',
+                    onTap: _pickFilterDate,
+                  ),
+                  const SizedBox(width: 8),
+                  _attFilterChip(
+                    label: _attFilter == 'month'
+                        ? _monthYearLabel(_filterMonth)
+                        : 'Pilih Bulan',
+                    icon: Icons.calendar_month_rounded,
+                    selected: _attFilter == 'month',
+                    onTap: _pickFilterMonth,
+                  ),
+                ],
+              ),
+            ),
+          ),
           const Divider(height: 1, color: _border),
           if (records.isEmpty)
             const Expanded(
               child: EmptyStateWidget(
-                title: 'Belum Ada Absensi',
-                subtitle: 'Aktivitas akses hari ini akan muncul di sini',
+                title: 'Tidak Ada Kehadiran',
+                subtitle: 'Tidak ada absensi pada periode yang dipilih',
                 icon: Icons.people_outline_rounded,
               ),
             )

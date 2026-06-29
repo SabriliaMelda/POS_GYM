@@ -5,6 +5,7 @@ import '../../controllers/transaction_history_controller.dart';
 import '../../models/index.dart';
 import '../../utils/utils.dart';
 import '../../widgets/index.dart';
+import '../../widgets/month_year_picker.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({super.key});
@@ -95,72 +96,76 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         final filteredEntries = _filterEntries(entries);
         final groupedEntries = _groupEntriesByDate(filteredEntries);
 
-        return RefreshIndicator(
-          onRefresh: _controller.loadTransactions,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                sliver: SliverToBoxAdapter(child: _buildHero(entries)),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                sliver: SliverToBoxAdapter(child: _buildFilters(entries)),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                sliver: SliverToBoxAdapter(
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Aktivitas Terbaru',
-                          style: TextStyle(
-                            color: _text,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
+        final bool loadingEmpty =
+            _controller.isLoading.value && entries.isEmpty;
+
+        return Column(
+          children: [
+            // Bagian atas tetap (hero + search/filter + judul).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+              child: _buildHero(entries),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+              child: _buildFilters(entries),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Aktivitas Terbaru',
+                      style: TextStyle(
+                        color: _text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
                       ),
-                      Text(
-                        '${filteredEntries.length} aktivitas',
-                        style: const TextStyle(
-                          color: _muted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                  Text(
+                    '${filteredEntries.length} aktivitas',
+                    style: const TextStyle(
+                      color: _muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-              if (_controller.isLoading.value && entries.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (filteredEntries.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: EmptyStateWidget(
-                    title: 'Riwayat Tidak Ditemukan',
-                    subtitle: 'Ubah kata kunci, tipe, atau filter tanggal',
-                    icon: Icons.receipt_long_outlined,
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-                  sliver: SliverList.separated(
-                    itemCount: groupedEntries.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 14),
-                    itemBuilder: (context, index) =>
-                        _buildDateSection(groupedEntries[index]),
-                  ),
-                ),
-            ],
-          ),
+            ),
+            // Hanya daftar transaksi yang menggulir.
+            Expanded(
+              child: loadingEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _controller.loadTransactions,
+                      child: filteredEntries.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: const [
+                                SizedBox(height: 60),
+                                EmptyStateWidget(
+                                  title: 'Riwayat Tidak Ditemukan',
+                                  subtitle:
+                                      'Ubah kata kunci, tipe, atau filter tanggal',
+                                  icon: Icons.receipt_long_outlined,
+                                ),
+                              ],
+                            )
+                          : ListView.separated(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                              itemCount: groupedEntries.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 14),
+                              itemBuilder: (context, index) =>
+                                  _buildDateSection(groupedEntries[index]),
+                            ),
+                    ),
+            ),
+          ],
         );
       }),
     );
@@ -229,21 +234,17 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   }
 
   Widget _buildFilters(List<_HistoryEntry> entries) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: _border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
+    final activeCount =
+        (_dateFilterMode != _DateFilterMode.all ? 1 : 0) +
+        (_selectedType != null ? 1 : 0);
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
             controller: _searchController,
             onChanged: (value) => setState(() => _query = value.trim()),
             decoration: InputDecoration(
-              hintText: 'Cari nama, ID transaksi, paket, atau item...',
+              hintText: 'Cari transaksi...',
               hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
               prefixIcon: const Icon(Icons.search_rounded, color: _primary),
               suffixIcon: _query.isEmpty
@@ -256,86 +257,222 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       },
                       icon: const Icon(Icons.close_rounded),
                     ),
+              isDense: true,
               filled: true,
-              fillColor: _background,
+              fillColor: _surface,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: _border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: _border),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 borderSide: const BorderSide(color: _primary, width: 1.3),
               ),
             ),
           ),
-          const SizedBox(height: 11),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildDateFilterChip(
-                icon: Icons.all_inbox_rounded,
-                label: 'Semua Tanggal',
-                count: entries.length,
-                selected: _dateFilterMode == _DateFilterMode.all,
-                onSelected: () =>
-                    setState(() => _dateFilterMode = _DateFilterMode.all),
-              ),
-              _buildDateFilterChip(
-                icon: Icons.today_rounded,
-                label: 'Hari Ini',
-                count: _countForDateFilter(entries, _DateFilterMode.today),
-                selected: _dateFilterMode == _DateFilterMode.today,
-                onSelected: () =>
-                    setState(() => _dateFilterMode = _DateFilterMode.today),
-              ),
-              _buildDateFilterChip(
-                icon: Icons.calendar_month_rounded,
-                label: 'Bulan Ini',
-                count: _countForMonth(entries, DateTime.now()),
-                selected:
-                    _dateFilterMode == _DateFilterMode.month &&
-                    _isSameMonth(_selectedMonth, DateTime.now()),
-                onSelected: () => setState(() {
-                  final now = DateTime.now();
-                  _dateFilterMode = _DateFilterMode.month;
-                  _selectedMonth = DateTime(now.year, now.month);
-                }),
-              ),
-              _buildCalendarFilterButton(entries),
-            ],
-          ),
-          const SizedBox(height: 11),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildFilterChip(
-                  label: 'Semua',
-                  count: entries.length,
-                  selected: _selectedType == null,
-                  onSelected: () => setState(() => _selectedType = null),
-                ),
-                const SizedBox(width: 7),
-                ..._HistoryType.values.map((type) {
-                  final visual = _visualFor(type);
-                  final count = entries
-                      .where((entry) => entry.type == type)
-                      .length;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 7),
-                    child: _buildFilterChip(
-                      label: visual.shortLabel,
-                      count: count,
-                      selected: _selectedType == type,
-                      onSelected: () => setState(() => _selectedType = type),
+        ),
+        const SizedBox(width: 8),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Material(
+              color: activeCount > 0 ? _primary : _surface,
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _showFilterSheet(entries),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: activeCount > 0 ? _primary : _border,
                     ),
-                  );
-                }),
-              ],
+                  ),
+                  child: Icon(
+                    Icons.tune_rounded,
+                    color: activeCount > 0 ? Colors.white : _muted,
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+            if (activeCount > 0)
+              Positioned(
+                right: -3,
+                top: -3,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFDC2626),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$activeCount',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _showFilterSheet(List<_HistoryEntry> entries) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheet) {
+          void apply(VoidCallback mutate) {
+            setState(mutate);
+            setSheet(() {});
+          }
+
+          // Entri yang lolos filter tanggal saat ini — dasar hitungan tipe.
+          final dateFiltered = entries
+              .where((e) => _matchesDateFilter(e.date))
+              .toList();
+
+          return SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Filter Riwayat',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            color: _text,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => apply(() {
+                          final now = DateTime.now();
+                          _dateFilterMode = _DateFilterMode.all;
+                          _selectedType = null;
+                          _selectedMonth = DateTime(now.year, now.month);
+                        }),
+                        child: const Text('Reset'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Tanggal',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: _muted,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildDateFilterChip(
+                        icon: Icons.all_inbox_rounded,
+                        label: 'Semua Tanggal',
+                        count: entries.length,
+                        selected: _dateFilterMode == _DateFilterMode.all,
+                        onSelected: () =>
+                            apply(() => _dateFilterMode = _DateFilterMode.all),
+                      ),
+                      _buildDateFilterChip(
+                        icon: Icons.today_rounded,
+                        label: 'Hari Ini',
+                        count: _countForDateFilter(
+                          entries,
+                          _DateFilterMode.today,
+                        ),
+                        selected: _dateFilterMode == _DateFilterMode.today,
+                        onSelected: () => apply(
+                          () => _dateFilterMode = _DateFilterMode.today,
+                        ),
+                      ),
+                      _buildDateFilterChip(
+                        icon: Icons.calendar_month_rounded,
+                        label: 'Bulan Ini',
+                        count: _countForMonth(entries, DateTime.now()),
+                        selected:
+                            _dateFilterMode == _DateFilterMode.month &&
+                            _isSameMonth(_selectedMonth, DateTime.now()),
+                        onSelected: () => apply(() {
+                          final now = DateTime.now();
+                          _dateFilterMode = _DateFilterMode.month;
+                          _selectedMonth = DateTime(now.year, now.month);
+                        }),
+                      ),
+                      _buildCalendarFilterButton(entries, apply),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Tipe Transaksi',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: _muted,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildFilterChip(
+                        label: 'Semua',
+                        count: dateFiltered.length,
+                        selected: _selectedType == null,
+                        onSelected: () => apply(() => _selectedType = null),
+                      ),
+                      ..._HistoryType.values.map((type) {
+                        final visual = _visualFor(type);
+                        final count = dateFiltered
+                            .where((entry) => entry.type == type)
+                            .length;
+                        return _buildFilterChip(
+                          label: visual.shortLabel,
+                          count: count,
+                          selected: _selectedType == type,
+                          onSelected: () => apply(() => _selectedType = type),
+                        );
+                      }),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -399,15 +536,18 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
-  Widget _buildCalendarFilterButton(List<_HistoryEntry> entries) {
+  Widget _buildCalendarFilterButton(
+    List<_HistoryEntry> entries,
+    void Function(VoidCallback) apply,
+  ) {
     final monthActive = _dateFilterMode == _DateFilterMode.month;
     final selected =
         monthActive && !_isSameMonth(_selectedMonth, DateTime.now());
-    final label = monthActive ? _monthYearLabel(_selectedMonth) : 'Kalender';
+    final label = monthActive ? _monthYearLabel(_selectedMonth) : 'Pilih Bulan';
     final count = monthActive ? _countForMonth(entries, _selectedMonth) : null;
 
     return InkWell(
-      onTap: _pickMonthFilter,
+      onTap: () => _pickMonthFilter(apply),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
@@ -435,22 +575,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
-  Future<void> _pickMonthFilter() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedMonth,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 1, 12, 31),
-      helpText: 'Pilih bulan riwayat',
-      cancelText: 'Batal',
-      confirmText: 'Pakai Bulan',
-    );
+  Future<void> _pickMonthFilter(void Function(VoidCallback) apply) async {
+    final picked = await pickMonthYear(context, initial: _selectedMonth);
     if (picked == null || !mounted) return;
 
-    setState(() {
+    // apply = setState (layar) + setSheet (rebuild sheet) → hitungan tipe ikut
+    // berubah setelah memilih bulan.
+    apply(() {
       _dateFilterMode = _DateFilterMode.month;
-      _selectedMonth = DateTime(picked.year, picked.month);
+      _selectedMonth = picked;
     });
   }
 

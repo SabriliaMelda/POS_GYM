@@ -14,8 +14,9 @@ enum MemberFilter { all, active, renewalDue, expired }
 /// Controller member untuk kasir. Sumber data = backend (sama seperti admin),
 /// bukan mock/SQLite lokal.
 class MemberManagementController extends GetxController {
-  /// Ambang "perlu perpanjangan": sisa hari <= nilai ini.
-  static const int renewalDueDays = 2;
+  /// Ambang "perlu perpanjangan" / boleh diperpanjang: sisa hari <= nilai ini
+  /// (H-7 sebelum masa paket berakhir).
+  static const int renewalDueDays = 7;
 
   MemberManagementController({AdminMasterDataRepository? repository})
     : _repository = repository ?? AdminMasterDataRepository();
@@ -88,6 +89,26 @@ class MemberManagementController extends GetxController {
       return true;
     } catch (e) {
       Get.snackbar('Kesalahan', 'Gagal memperpanjang: ${_message(e)}');
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Menukar (memakai) voucher F&B member lewat backend lalu memuat ulang.
+  Future<bool> redeemVoucher(Member member, int milestone) async {
+    final id = member.id;
+    if (id == null) {
+      Get.snackbar('Kesalahan', 'ID member tidak valid.');
+      return false;
+    }
+    try {
+      isLoading.value = true;
+      await _repository.redeemVoucher(id, milestone);
+      await loadMembers();
+      return true;
+    } catch (e) {
+      Get.snackbar('Kesalahan', 'Gagal memakai voucher: ${_message(e)}');
       return false;
     } finally {
       isLoading.value = false;

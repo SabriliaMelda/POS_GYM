@@ -292,23 +292,7 @@ class _LoginFormPanel extends StatelessWidget {
                         ? 'Password wajib diisi'
                         : null,
                   ),
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Hubungi admin untuk mengatur ulang password.',
-                            ),
-                          ),
-                        );
-                      },
-                      child: const Text('Lupa password?'),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
                     height: 54,

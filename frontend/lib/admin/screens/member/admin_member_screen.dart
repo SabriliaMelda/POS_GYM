@@ -30,6 +30,13 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
   final TextEditingController _searchController = TextEditingController();
   _MemberFilter _selectedFilter = _MemberFilter.all;
   String _searchQuery = '';
+
+  // Mode panel "Pantauan": 'renewal' (perlu perpanjangan) | 'voucher' (voucher
+  // aktif untuk di-follow-up).
+  String _monitorMode = 'renewal';
+
+  // Daftar member di-scroll dalam area tetap.
+  final ScrollController _memberScroll = ScrollController();
   List<Member> _members = const [];
   List<GymPackage> _packages = const [];
   bool _isLoading = true;
@@ -44,6 +51,7 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _memberScroll.dispose();
     super.dispose();
   }
 
@@ -100,7 +108,13 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
     final activeMembers = members.where(_isActiveMember).toList();
     final renewalDueMembers = members.where(_isRenewalDueMember).toList();
     final expiredMembers = members.where((member) => member.isExpired).toList();
-    final monitoringMembers = renewalDueMembers;
+    // Voucher untuk member aktif/perlu-perpanjangan (yang belum kadaluwarsa).
+    final voucherMembers = members
+        .where((m) => !m.isExpired && availableVouchers(m).isNotEmpty)
+        .toList();
+    final monitoringMembers = _monitorMode == 'voucher'
+        ? voucherMembers
+        : renewalDueMembers;
     final filteredMembers = _filteredMembers(members);
 
     return RefreshIndicator(
@@ -148,52 +162,76 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
                 ),
                 const SizedBox(height: 14),
                 _RenewalMonitorPanel(
-                  members: monitoringMembers.take(4).toList(),
+                  members: monitoringMembers,
                   totalCount: monitoringMembers.length,
-                  onShowRenewalDue: () {
-                    setState(() => _selectedFilter = _MemberFilter.renewalDue);
-                  },
-                  onFollowUp: _showFollowUpNotificationDialog,
-                ),
-                const SizedBox(height: 14),
-                _MemberToolbar(
-                  searchController: _searchController,
-                  selectedFilter: _selectedFilter,
-                  counts: {
-                    _MemberFilter.all: members.length,
-                    _MemberFilter.active: activeMembers.length,
-                    _MemberFilter.renewalDue: renewalDueMembers.length,
-                    _MemberFilter.expired: expiredMembers.length,
-                  },
-                  onSearchChanged: (value) {
-                    setState(() => _searchQuery = value);
-                  },
-                  onFilterChanged: (filter) {
-                    setState(() => _selectedFilter = filter);
-                  },
+                  mode: _monitorMode,
+                  renewalCount: renewalDueMembers.length,
+                  voucherCount: voucherMembers.length,
+                  onModeChanged: (m) => setState(() => _monitorMode = m),
+                  onFollowUp: (m) => _showFollowUpNotificationDialog(
+                    m,
+                    initialKind: _monitorMode,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 _Panel(
                   title: 'Daftar Member',
                   helper:
-                      '${filteredMembers.length} data ditampilkan dari ${members.length} member.',
-                  child: filteredMembers.isEmpty
-                      ? const _EmptyMemberState()
-                      : Column(
-                          children: [
-                            if (isWide) const _MemberListHeader(),
-                            ...filteredMembers.map((member) {
-                              return _MemberRowTile(
-                                member: member,
-                                packageName: _packageName(member.gymPackageId),
-                                isWide: isWide,
-                                onOpenDetail: () =>
-                                    _openMemberDetailPage(member),
-                                onDelete: () => _confirmDeleteMember(member),
-                              );
-                            }),
-                          ],
+                      '${filteredMembers.length} dari ${members.length} member.',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Searchbar + filter menyatu dengan data member.
+                      _MemberToolbar(
+                        searchController: _searchController,
+                        selectedFilter: _selectedFilter,
+                        counts: {
+                          _MemberFilter.all: members.length,
+                          _MemberFilter.active: activeMembers.length,
+                          _MemberFilter.renewalDue: renewalDueMembers.length,
+                          _MemberFilter.expired: expiredMembers.length,
+                        },
+                        onSearchChanged: (value) {
+                          setState(() => _searchQuery = value);
+                        },
+                        onFilterChanged: (filter) {
+                          setState(() => _selectedFilter = filter);
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      if (filteredMembers.isEmpty)
+                        const _EmptyMemberState()
+                      else ...[
+                        if (isWide) const _MemberListHeader(),
+                        // Daftar member bisa di-scroll (bukan per-halaman).
+                        SizedBox(
+                          height: 460,
+                          child: Scrollbar(
+                            controller: _memberScroll,
+                            thumbVisibility: true,
+                            child: ListView.builder(
+                              controller: _memberScroll,
+                              padding: const EdgeInsets.only(right: 8),
+                              itemCount: filteredMembers.length,
+                              itemBuilder: (context, index) {
+                                final member = filteredMembers[index];
+                                return _MemberRowTile(
+                                  member: member,
+                                  packageName: _packageName(
+                                    member.gymPackageId,
+                                  ),
+                                  isWide: isWide,
+                                  onOpenDetail: () =>
+                                      _openMemberDetailPage(member),
+                                  onDelete: () => _confirmDeleteMember(member),
+                                );
+                              },
+                            ),
+                          ),
                         ),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -242,56 +280,140 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
         builder: (_) => _AdminMemberDetailPage(
           member: member,
           packageName: _packageName(member.gymPackageId),
+          initialPackageName: _packageName(member.initialPackageId),
         ),
       ),
     );
   }
 
-  Future<void> _showFollowUpNotificationDialog(Member member) async {
-    final sent = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Follow-up Member'),
-          content: SizedBox(
-            width: 520,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DialogInfoRow(label: 'Member', value: member.name),
-                  _DialogInfoRow(label: 'Email', value: member.email),
-                  _DialogInfoRow(
-                    label: 'Masa aktif',
-                    value: _formatDate(member.membershipExpiryDate),
-                  ),
-                  const SizedBox(height: 14),
-                  _GmailPreviewCard(
-                    recipient: member.email,
-                    subject: _followUpNotificationSubject(member),
-                    message: _followUpNotificationMessage(member),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Batal'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(context, true),
-              icon: const Icon(Icons.mark_email_read_rounded),
-              label: const Text('Kirim Follow-up'),
-            ),
-          ],
-        );
-      },
+  String _followUpSubjectFor(Member member, String kind) => kind == 'voucher'
+      ? _voucherFollowUpSubject(member)
+      : _followUpNotificationSubject(member);
+
+  String _followUpMessageFor(Member member, String kind) => kind == 'voucher'
+      ? _voucherFollowUpMessage(member)
+      : _followUpNotificationMessage(member);
+
+  Future<void> _showFollowUpNotificationDialog(
+    Member member, {
+    String initialKind = 'renewal',
+  }) async {
+    // Follow-up = tugas admin (manual), untuk perpanjangan ATAU voucher.
+    // Subjek & pesan terisi template, tapi bisa DIEDIT admin sebelum dikirim.
+    final hasVoucher = availableVouchers(member).isNotEmpty;
+    var kind = (initialKind == 'voucher' && hasVoucher) ? 'voucher' : 'renewal';
+    final subjectCtrl = TextEditingController(
+      text: _followUpSubjectFor(member, kind),
+    );
+    final messageCtrl = TextEditingController(
+      text: _followUpMessageFor(member, kind),
     );
 
-    if (sent != true || !mounted) return;
+    InputDecoration deco(String label) => InputDecoration(
+      labelText: label,
+      alignLabelWithHint: true,
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) {
+          return AlertDialog(
+            title: const Text('Follow-up Member'),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _DialogInfoRow(label: 'Member', value: member.name),
+                    _DialogInfoRow(label: 'Email', value: member.email),
+                    _DialogInfoRow(
+                      label: 'Masa aktif',
+                      value: _formatDate(member.membershipExpiryDate),
+                    ),
+                    if (hasVoucher) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Jenis follow-up',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                            value: 'renewal',
+                            icon: Icon(Icons.autorenew_rounded),
+                            label: Text('Perpanjangan'),
+                          ),
+                          ButtonSegment(
+                            value: 'voucher',
+                            icon: Icon(Icons.confirmation_number_rounded),
+                            label: Text('Voucher'),
+                          ),
+                        ],
+                        selected: {kind},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (s) => setLocal(() {
+                          kind = s.first;
+                          // Ganti jenis -> isi ulang template (timpa editan).
+                          subjectCtrl.text = _followUpSubjectFor(member, kind);
+                          messageCtrl.text = _followUpMessageFor(member, kind);
+                        }),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: subjectCtrl,
+                      decoration: deco('Subjek email'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: messageCtrl,
+                      minLines: 5,
+                      maxLines: 10,
+                      decoration: deco('Isi pesan'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(context, true),
+                icon: const Icon(Icons.mark_email_read_rounded),
+                label: const Text('Kirim Follow-up'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final subject = subjectCtrl.text.trim();
+    final body = messageCtrl.text.trim();
+    final type = kind == 'voucher'
+        ? 'voucher_active'
+        : (member.isExpired ? 'expired' : 'renewal');
+    subjectCtrl.dispose();
+    messageCtrl.dispose();
+
+    if (confirmed != true || !mounted) return;
+    if (subject.isEmpty || body.isEmpty) {
+      _showSnackBar('Subjek dan pesan tidak boleh kosong.');
+      return;
+    }
 
     final id = member.id;
     if (id == null) {
@@ -301,19 +423,39 @@ class _AdminMemberScreenState extends State<AdminMemberScreen> {
 
     _showSnackBar('Mengirim follow-up ke ${member.email}...');
     try {
-      final message = await _repository.sendMemberFollowUp(
+      final responseMsg = await _repository.sendMemberFollowUp(
         id,
-        subject: _followUpNotificationSubject(member),
-        message: _followUpNotificationMessage(member),
-        type: member.isExpired ? 'expired' : 'renewal',
+        subject: subject,
+        message: body,
+        type: type,
       );
       if (!mounted) return;
-      _showSnackBar(message);
+      _showSnackBar(responseMsg);
       await _loadData();
     } catch (error) {
       if (!mounted) return;
       _showSnackBar(error.toString());
     }
+  }
+
+  String _voucherFollowUpSubject(Member member) {
+    final vouchers = availableVouchers(member);
+    if (vouchers.isEmpty) return 'Voucher Makan X-FIT';
+    return 'Voucher Makan ${vouchers.last.percent}% Sudah Aktif - X-FIT';
+  }
+
+  String _voucherFollowUpMessage(Member member) {
+    final vouchers = availableVouchers(member);
+    if (vouchers.isEmpty) {
+      return 'Halo ${member.name},\n\nBelum ada voucher makan aktif saat ini.';
+    }
+    final v = vouchers.last;
+    return 'Halo ${member.name},\n\n'
+        'Selamat! Anda telah mencapai ${v.visits} kunjungan dan mendapatkan '
+        'VOUCHER MAKAN diskon ${v.percent}% di X-FIT.\n\n'
+        'Voucher dapat diklaim di kasir paling lambat ${_formatDate(v.expiresAt)} '
+        '(30 hari sejak aktif). Lewat tanggal tersebut voucher akan hangus.\n\n'
+        'Sampai jumpa di X-FIT!';
   }
 
   Future<void> _confirmDeleteMember(Member member) async {
@@ -429,10 +571,12 @@ class _AdminMemberDetailPage extends StatelessWidget {
   const _AdminMemberDetailPage({
     required this.member,
     required this.packageName,
+    required this.initialPackageName,
   });
 
   final Member member;
   final String packageName;
+  final String initialPackageName;
 
   @override
   Widget build(BuildContext context) {
@@ -614,7 +758,10 @@ class _AdminMemberDetailPage extends StatelessWidget {
               const SizedBox(height: 12),
               _VoucherProgressPanel(member: member),
               const SizedBox(height: 12),
-              _RenewalHistoryPanel(member: member),
+              _RenewalHistoryPanel(
+                member: member,
+                initialPackageName: initialPackageName,
+              ),
               const SizedBox(height: 12),
               _FollowUpHistoryPanel(member: member),
             ],
@@ -698,8 +845,12 @@ class _FollowUpRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isExpired = followUp.type == 'expired';
-    final typeLabel = isExpired ? 'Aktivasi ulang' : 'Pengingat perpanjangan';
+    final typeLabel = switch (followUp.type) {
+      'expired' => 'Aktivasi ulang',
+      'voucher_active' => 'Follow-up voucher',
+      'voucher_expiry' => 'Voucher mau hangus',
+      _ => 'Pengingat perpanjangan',
+    };
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -762,9 +913,13 @@ class _FollowUpRow extends StatelessWidget {
 }
 
 class _RenewalHistoryPanel extends StatelessWidget {
-  const _RenewalHistoryPanel({required this.member});
+  const _RenewalHistoryPanel({
+    required this.member,
+    required this.initialPackageName,
+  });
 
   final Member member;
+  final String initialPackageName;
 
   static const Color _blue = Color(0xFF2563EB);
 
@@ -818,10 +973,88 @@ class _RenewalHistoryPanel extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          const SizedBox(height: 12),
           if (renewals.isNotEmpty) ...[
-            const SizedBox(height: 12),
             ...renewals.map((renewal) => _RenewalRow(renewal: renewal)),
           ],
+          // Paket pendaftaran awal (sama seperti detail member di kasir).
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AdminMemberScreen._border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF15803D).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.app_registration_rounded,
+                    color: Color(0xFF15803D),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        initialPackageName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AdminMemberScreen._text,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        renewals.isEmpty
+                            ? 'Paket pendaftaran awal (belum pernah diperpanjang)'
+                            : 'Paket pendaftaran awal',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AdminMemberScreen._muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'Daftar',
+                      style: TextStyle(
+                        color: Color(0xFF15803D),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      _formatDate(member.registrationDate),
+                      style: const TextStyle(
+                        color: AdminMemberScreen._muted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1002,14 +1235,14 @@ class _VoucherTierRow extends StatelessWidget {
       color = AdminMemberScreen._muted;
       icon = Icons.check_circle_rounded;
       label = 'Dipakai ${_formatDate(status.usedAt!)}';
-    } else if (status.available) {
+    } else if (status.expired) {
+      color = const Color(0xFFB91C1C);
+      icon = Icons.block_rounded;
+      label = 'Hangus ${_formatDate(status.expiresAt)}';
+    } else {
       color = AdminMemberScreen._green;
       icon = Icons.redeem_rounded;
-      label = 'Bisa ditukar';
-    } else {
-      color = AdminMemberScreen._muted;
-      icon = Icons.lock_outline_rounded;
-      label = 'Terkunci';
+      label = 'Aktif s/d ${_formatDate(status.expiresAt)}';
     }
 
     return Padding(
@@ -1438,21 +1671,128 @@ class _SummaryGrid extends StatelessWidget {
   }
 }
 
-class _RenewalMonitorPanel extends StatelessWidget {
+class _RenewalMonitorPanel extends StatefulWidget {
   const _RenewalMonitorPanel({
     required this.members,
     required this.totalCount,
-    required this.onShowRenewalDue,
+    required this.mode,
+    required this.renewalCount,
+    required this.voucherCount,
+    required this.onModeChanged,
     required this.onFollowUp,
   });
 
   final List<Member> members;
   final int totalCount;
-  final VoidCallback onShowRenewalDue;
+  final String mode;
+  final int renewalCount;
+  final int voucherCount;
+  final ValueChanged<String> onModeChanged;
   final ValueChanged<Member> onFollowUp;
 
   @override
+  State<_RenewalMonitorPanel> createState() => _RenewalMonitorPanelState();
+}
+
+class _RenewalMonitorPanelState extends State<_RenewalMonitorPanel> {
+  static const int _pageSize = 4;
+  int _page = 0;
+
+  @override
+  void didUpdateWidget(covariant _RenewalMonitorPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Balik ke halaman pertama saat ganti mode / jumlah data berubah.
+    if (oldWidget.mode != widget.mode ||
+        oldWidget.members.length != widget.members.length) {
+      _page = 0;
+    }
+  }
+
+  Widget _modeButton(String value, IconData icon, String label, int count) {
+    final selected = widget.mode == value;
+    void onPressed() => widget.onModeChanged(value);
+    final iconWidget = Icon(icon, size: 18);
+    final labelWidget = Text('$label ($count)');
+    return selected
+        ? FilledButton.icon(
+            onPressed: onPressed,
+            icon: iconWidget,
+            label: labelWidget,
+          )
+        : OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: iconWidget,
+            label: labelWidget,
+          );
+  }
+
+  Widget _pageDot(int index) {
+    final selected = index == _page;
+    return InkWell(
+      onTap: () => setState(() => _page = index),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? AdminMemberScreen._navy : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          '${index + 1}',
+          style: TextStyle(
+            color: selected ? Colors.white : AdminMemberScreen._muted,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pager(int pageCount) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            tooltip: 'Sebelumnya',
+            visualDensity: VisualDensity.compact,
+            onPressed: _page > 0 ? () => setState(() => _page--) : null,
+            icon: const Icon(Icons.chevron_left_rounded),
+          ),
+          for (var i = 0; i < pageCount; i++) ...[
+            _pageDot(i),
+            if (i != pageCount - 1) const SizedBox(width: 6),
+          ],
+          IconButton(
+            tooltip: 'Berikutnya',
+            visualDensity: VisualDensity.compact,
+            onPressed: _page < pageCount - 1
+                ? () => setState(() => _page++)
+                : null,
+            icon: const Icon(Icons.chevron_right_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final members = widget.members;
+    final mode = widget.mode;
+    final totalCount = widget.totalCount;
+    final renewalCount = widget.renewalCount;
+    final voucherCount = widget.voucherCount;
+    final pageCount = members.isEmpty
+        ? 1
+        : (members.length + _pageSize - 1) ~/ _pageSize;
+    if (_page > pageCount - 1) _page = pageCount - 1;
+    final pageItems = members.skip(_page * _pageSize).take(_pageSize).toList();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -1487,7 +1827,7 @@ class _RenewalMonitorPanel extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Pantauan Perpanjangan',
+                          'Pantauan',
                           style: TextStyle(
                             color: AdminMemberScreen._text,
                             fontSize: 15,
@@ -1495,9 +1835,13 @@ class _RenewalMonitorPanel extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          totalCount == 0
-                              ? 'Tidak ada member yang perlu ditindaklanjuti.'
-                              : '$totalCount member perlu dipantau admin.',
+                          mode == 'voucher'
+                              ? (totalCount == 0
+                                    ? 'Belum ada voucher aktif untuk di-follow-up.'
+                                    : '$totalCount member punya voucher aktif.')
+                              : (totalCount == 0
+                                    ? 'Tidak ada member yang perlu ditindaklanjuti.'
+                                    : '$totalCount member perlu perpanjangan.'),
                           style: const TextStyle(
                             color: AdminMemberScreen._muted,
                             fontSize: 11,
@@ -1514,10 +1858,17 @@ class _RenewalMonitorPanel extends StatelessWidget {
                 runSpacing: 8,
                 alignment: WrapAlignment.end,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: onShowRenewalDue,
-                    icon: const Icon(Icons.event_busy_rounded, size: 18),
-                    label: const Text('Perlu Perpanjangan'),
+                  _modeButton(
+                    'renewal',
+                    Icons.event_busy_rounded,
+                    'Perlu Perpanjangan',
+                    renewalCount,
+                  ),
+                  _modeButton(
+                    'voucher',
+                    Icons.confirmation_number_rounded,
+                    'Voucher',
+                    voucherCount,
                   ),
                 ],
               );
@@ -1538,7 +1889,7 @@ class _RenewalMonitorPanel extends StatelessWidget {
               );
             },
           ),
-          if (members.isNotEmpty) ...[
+          if (pageItems.isNotEmpty) ...[
             const SizedBox(height: 12),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -1546,20 +1897,22 @@ class _RenewalMonitorPanel extends StatelessWidget {
                 return Wrap(
                   spacing: 10,
                   runSpacing: 10,
-                  children: members.map((member) {
+                  children: pageItems.map((member) {
                     return SizedBox(
                       width: isWide
                           ? (constraints.maxWidth - 10) / 2
                           : constraints.maxWidth,
                       child: _MonitorMemberTile(
                         member: member,
-                        onFollowUp: () => onFollowUp(member),
+                        mode: mode,
+                        onFollowUp: () => widget.onFollowUp(member),
                       ),
                     );
                   }).toList(),
                 );
               },
             ),
+            if (pageCount > 1) _pager(pageCount),
           ],
         ],
       ),
@@ -1568,14 +1921,23 @@ class _RenewalMonitorPanel extends StatelessWidget {
 }
 
 class _MonitorMemberTile extends StatelessWidget {
-  const _MonitorMemberTile({required this.member, required this.onFollowUp});
+  const _MonitorMemberTile({
+    required this.member,
+    required this.mode,
+    required this.onFollowUp,
+  });
 
   final Member member;
+  final String mode;
   final VoidCallback onFollowUp;
 
   @override
   Widget build(BuildContext context) {
     final status = _memberStatus(member);
+    final vouchers = availableVouchers(member);
+    final subtitle = mode == 'voucher' && vouchers.isNotEmpty
+        ? '${member.memberId} - Voucher ${vouchers.last.percent}% aktif'
+        : '${member.memberId} - ${_formatDate(member.membershipExpiryDate)}';
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -1602,7 +1964,7 @@ class _MonitorMemberTile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${member.memberId} - ${_formatDate(member.membershipExpiryDate)}',
+                  subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -1642,60 +2004,51 @@ class _MemberToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AdminMemberScreen._surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AdminMemberScreen._border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: searchController,
-            onChanged: onSearchChanged,
-            decoration: InputDecoration(
-              hintText: 'Cari nama, ID member, email, atau nomor telepon',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: searchController.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Bersihkan pencarian',
-                      onPressed: () {
-                        searchController.clear();
-                        onSearchChanged('');
-                      },
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AdminMemberScreen._border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AdminMemberScreen._border),
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: searchController,
+          onChanged: onSearchChanged,
+          decoration: InputDecoration(
+            hintText: 'Cari nama, ID member, email, atau nomor telepon',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: searchController.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Bersihkan pencarian',
+                    onPressed: () {
+                      searchController.clear();
+                      onSearchChanged('');
+                    },
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AdminMemberScreen._border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AdminMemberScreen._border),
             ),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _MemberFilter.values.map((filter) {
-              return ChoiceChip(
-                selected: selectedFilter == filter,
-                onSelected: (_) => onFilterChanged(filter),
-                avatar: Icon(_filterIcon(filter), size: 16),
-                label: Text('${_filterLabel(filter)} (${counts[filter] ?? 0})'),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _MemberFilter.values.map((filter) {
+            return ChoiceChip(
+              selected: selectedFilter == filter,
+              onSelected: (_) => onFilterChanged(filter),
+              avatar: Icon(_filterIcon(filter), size: 16),
+              label: Text('${_filterLabel(filter)} (${counts[filter] ?? 0})'),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
@@ -2101,94 +2454,6 @@ class _MemberActions extends StatelessWidget {
           icon: const Icon(Icons.delete_rounded),
         ),
       ],
-    );
-  }
-}
-
-class _GmailPreviewCard extends StatelessWidget {
-  const _GmailPreviewCard({
-    required this.recipient,
-    required this.subject,
-    required this.message,
-  });
-
-  final String recipient;
-  final String subject;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF93C5FD)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.mark_email_read_rounded,
-                color: AdminMemberScreen._navy,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Gmail ke $recipient',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AdminMemberScreen._text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 18),
-          const Text(
-            'Subjek',
-            style: TextStyle(
-              color: AdminMemberScreen._muted,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subject,
-            style: const TextStyle(
-              color: AdminMemberScreen._text,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Pesan',
-            style: TextStyle(
-              color: AdminMemberScreen._muted,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            message,
-            style: const TextStyle(
-              color: AdminMemberScreen._text,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

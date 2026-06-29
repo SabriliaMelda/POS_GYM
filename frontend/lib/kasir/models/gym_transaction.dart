@@ -10,6 +10,13 @@ class GymTransaction {
   final String status;
   final DateTime transactionDate;
   final String? notes;
+
+  /// Tipe pelanggan: 'new' | 'member' | 'guest'. Hanya 'new' yang bisa
+  /// dilanjutkan registrasi data diri member.
+  final String? customerType;
+
+  /// Kode member tertaut (terisi bila transaksi 'new' sudah diregistrasi).
+  final String? memberCode;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,6 +32,8 @@ class GymTransaction {
     required this.status,
     required this.transactionDate,
     this.notes,
+    this.customerType,
+    this.memberCode,
     required this.createdAt,
     required this.updatedAt,
   });

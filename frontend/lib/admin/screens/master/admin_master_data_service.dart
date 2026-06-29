@@ -195,6 +195,21 @@ class AdminMasterDataRepository {
     _ensureSuccess(response, payload, {200});
   }
 
+  /// Menukar (memakai) voucher F&B member di kasir. [milestone] = kelipatan
+  /// kunjungan voucher (50, 100, ...).
+  Future<void> redeemVoucher(int id, int milestone) async {
+    final response = await _client
+        .post(
+          Uri.parse(
+            '$_baseUrl/api/admin/master/members/$id/vouchers/$milestone/use',
+          ),
+          headers: await _authorizedHeaders(),
+        )
+        .timeout(const Duration(seconds: 15));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {200});
+  }
+
   /// Daftar transaksi gym terbaru (untuk panel riwayat kasir).
   Future<List<GymTransaction>> listGymTransactions() async {
     final response = await _client
@@ -223,6 +238,7 @@ class AdminMasterDataRepository {
     required String packageCode,
     required String paymentMethod,
     String notes = '',
+    String customerName = '',
   }) async {
     final response = await _client
         .post(
@@ -234,6 +250,7 @@ class AdminMasterDataRepository {
             'package_code': packageCode,
             'payment_method': paymentMethod,
             'notes': notes,
+            'customer_name': customerName,
           }),
         )
         .timeout(const Duration(seconds: 15));
@@ -272,6 +289,7 @@ class AdminMasterDataRepository {
     int? memberId,
     required String paymentMethod,
     String notes = '',
+    double discountAmount = 0,
     required List<Map<String, dynamic>> items,
   }) async {
     final response = await _client
@@ -282,6 +300,7 @@ class AdminMasterDataRepository {
             'member_id': memberId,
             'payment_method': paymentMethod,
             'notes': notes,
+            'discount_amount': discountAmount,
             'items': items,
           }),
         )
@@ -356,6 +375,95 @@ class AdminMasterDataRepository {
         .toList();
   }
 
+  /// Membuat transaksi pembayaran Midtrans (Snap). Mengembalikan order_id +
+  /// redirect_url (halaman bayar Midtrans) untuk ditampilkan/di-scan pelanggan.
+  Future<SnapPayment> createSnapPayment({
+    required int amount,
+    required String label,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('$_baseUrl/api/payment/snap'),
+          headers: await _authorizedHeaders(),
+          body: jsonEncode({'amount': amount, 'label': label}),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {200});
+    return SnapPayment(
+      orderId: payload['order_id']?.toString() ?? '',
+      redirectUrl: payload['redirect_url']?.toString() ?? '',
+      token: payload['token']?.toString() ?? '',
+    );
+  }
+
+  /// Cek status pembayaran Midtrans (untuk polling). True bila sudah lunas.
+  Future<bool> checkPaymentStatus(String orderId) async {
+    final response = await _client
+        .get(
+          Uri.parse(
+            '$_baseUrl/api/payment/status'
+            '?order_id=${Uri.encodeQueryComponent(orderId)}',
+          ),
+          headers: await _authorizedHeaders(),
+        )
+        .timeout(const Duration(seconds: 15));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {200});
+    return payload['paid'] == true;
+  }
+
+  /// Info untuk halaman registrasi member (PUBLIK, dari kode transaksi).
+  Future<RegisterInfo> registerInfo(String trx) async {
+    final response = await _client
+        .get(
+          Uri.parse(
+            '$_baseUrl/api/register/info?trx=${Uri.encodeQueryComponent(trx)}',
+          ),
+          headers: const {'Content-Type': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 15));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {200});
+    return RegisterInfo(
+      transactionCode: payload['transaction_code']?.toString() ?? '',
+      customerName: payload['customer_name']?.toString() ?? '',
+      packageName: payload['package_name']?.toString() ?? '',
+      alreadyRegistered: payload['already_registered'] == true,
+      memberCode: payload['member_code']?.toString() ?? '',
+    );
+  }
+
+  /// Membuat member baru dari form HP (PUBLIK). Mengembalikan member_code.
+  Future<String> registerMember({
+    required String trx,
+    required String fullName,
+    required String email,
+    required String phoneNumber,
+    required String address,
+    required String gender,
+    required String dateOfBirth,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('$_baseUrl/api/register/member'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'trx': trx,
+            'full_name': fullName,
+            'email': email,
+            'phone_number': phoneNumber,
+            'address': address,
+            'gender': gender,
+            'date_of_birth': dateOfBirth,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _decodePayload(response.body);
+    _ensureSuccess(response, payload, {201});
+    return payload['member_code']?.toString() ?? '';
+  }
+
   GymTransaction _gymTransactionFromApi(Map<String, dynamic> json) {
     final date =
         DateTime.tryParse(
@@ -376,6 +484,8 @@ class AdminMasterDataRepository {
       status: json['status']?.toString() ?? 'completed',
       transactionDate: date,
       notes: json['notes']?.toString(),
+      customerType: json['customer_type']?.toString(),
+      memberCode: json['member_code']?.toString(),
       createdAt: date,
       updatedAt: date,
     );
@@ -499,6 +609,36 @@ class AttendanceMember {
 }
 
 /// Hasil check-in absensi dari backend.
+/// Info transaksi untuk halaman registrasi member.
+class RegisterInfo {
+  const RegisterInfo({
+    required this.transactionCode,
+    required this.customerName,
+    required this.packageName,
+    required this.alreadyRegistered,
+    required this.memberCode,
+  });
+
+  final String transactionCode;
+  final String customerName;
+  final String packageName;
+  final bool alreadyRegistered;
+  final String memberCode;
+}
+
+/// Hasil pembuatan pembayaran Midtrans Snap.
+class SnapPayment {
+  const SnapPayment({
+    required this.orderId,
+    required this.redirectUrl,
+    required this.token,
+  });
+
+  final String orderId;
+  final String redirectUrl;
+  final String token;
+}
+
 class AttendanceCheckIn {
   const AttendanceCheckIn({
     required this.memberName,
